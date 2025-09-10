@@ -4,7 +4,8 @@
   "description": "Agar.io clone game",
   "main": "app.py",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "devDependencies": {
     "@babel/core": "^7.23.2",
@@ -20,6 +21,22 @@
     },
     "transform": {
       "^.+\\.js$": "babel-jest"
+    },
+    "collectCoverage": false,
+    "collectCoverageFrom": [
+      "static/js/**/*.js",
+      "!static/js/__tests__/**",
+      "!static/js/__mocks__/**"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"],
+    "coverageThreshold": {
+      "global": {
+        "branches": 25,
+        "functions": 30,
+        "lines": 30,
+        "statements": 30
+      }
     }
   }
 }
