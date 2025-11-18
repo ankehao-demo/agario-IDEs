@@ -97,9 +97,36 @@ export function handlePlayerAICollisions() {
     }
 }
 
+function calculatePairMetrics(ai1, ai2) {
+    const distance = getDistance(ai1, ai2);
+    const ai1Size = getSize(ai1.score);
+    const ai2Size = getSize(ai2.score);
+    const minDistance = ai1Size + ai2Size;
+    return { distance, ai1Size, ai2Size, minDistance };
+}
+
+function determineCollisionOutcome(metrics) {
+    if (metrics.distance >= metrics.minDistance) {
+        return 'none';
+    }
+    if (metrics.ai1Size > metrics.ai2Size * COLLISION_THRESHOLD) {
+        return 'ai1Consumes';
+    }
+    if (metrics.ai2Size > metrics.ai1Size * COLLISION_THRESHOLD) {
+        return 'ai2Consumes';
+    }
+    return 'none';
+}
+
+function recordConsumption(winnerIndex, loserIndex, scoreGains, aisToRemove, aiPlayers) {
+    const currentGain = scoreGains.get(winnerIndex) || 0;
+    scoreGains.set(winnerIndex, currentGain + aiPlayers[loserIndex].score + 100);
+    aisToRemove.add(loserIndex);
+}
+
 export function handleAIAICollisions() {
     const aisToRemove = new Set();
-    const scoreGains = new Map(); // Map of AI index to score gain
+    const scoreGains = new Map();
 
     for (let i = 0; i < gameState.aiPlayers.length; i++) {
         if (aisToRemove.has(i)) continue;
@@ -110,34 +137,24 @@ export function handleAIAICollisions() {
             const ai1 = gameState.aiPlayers[i];
             const ai2 = gameState.aiPlayers[j];
             
-            const distance = getDistance(ai1, ai2);
-            const ai1Size = getSize(ai1.score);
-            const ai2Size = getSize(ai2.score);
-            const minDistance = ai1Size + ai2Size;
+            const metrics = calculatePairMetrics(ai1, ai2);
+            const outcome = determineCollisionOutcome(metrics);
 
-            if (distance < minDistance) {
-                if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(i) || 0;
-                    scoreGains.set(i, currentGain + ai2.score + 100);
-                    aisToRemove.add(j);
-                } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(j) || 0;
-                    scoreGains.set(j, currentGain + ai1.score + 100);
-                    aisToRemove.add(i);
-                    break;
-                }
+            if (outcome === 'ai1Consumes') {
+                recordConsumption(i, j, scoreGains, aisToRemove, gameState.aiPlayers);
+            } else if (outcome === 'ai2Consumes') {
+                recordConsumption(j, i, scoreGains, aisToRemove, gameState.aiPlayers);
+                break;
             }
         }
     }
 
-    // Apply score gains to surviving AIs
     scoreGains.forEach((gain, aiIndex) => {
         if (!aisToRemove.has(aiIndex)) {
             gameState.aiPlayers[aiIndex].score += gain;
         }
     });
 
-    // Remove consumed AIs (in reverse order)
     [...aisToRemove].sort((a, b) => b - a).forEach(index => {
         gameState.aiPlayers.splice(index, 1);
     });

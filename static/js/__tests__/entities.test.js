@@ -111,4 +111,92 @@ describe('updatePlayer', () => {
 
     expect(smallCellSpeed).toBeGreaterThan(largeCellSpeed);  // Smaller cells move faster
   });
+
+  test('applies repulsion force when cells are too close', () => {
+    const now = Date.now();
+    const cell1 = { 
+      x: 100, 
+      y: 100, 
+      score: 100, 
+      velocityX: 0, 
+      velocityY: 0,
+      splitTime: now - 1000
+    };
+    const cell2 = { 
+      x: 105, 
+      y: 100, 
+      score: 100, 
+      velocityX: 0, 
+      velocityY: 0,
+      splitTime: now - 1000
+    };
+    
+    gameState.playerCells = [cell1, cell2];
+    mouse.x = 500;
+    mouse.y = 500;
+    
+    updatePlayer();
+    
+    expect(cell1.velocityX).toBeLessThan(0);
+    expect(cell2.velocityX).toBeGreaterThan(0);
+  });
+
+  test('applies attraction force when cells can merge', () => {
+    const now = Date.now();
+    const cell1 = { 
+      x: 100, 
+      y: 100, 
+      score: 100, 
+      velocityX: 0, 
+      velocityY: 0,
+      splitTime: now - 20000
+    };
+    const cell2 = { 
+      x: 200, 
+      y: 100, 
+      score: 100, 
+      velocityX: 0, 
+      velocityY: 0,
+      splitTime: now - 20000
+    };
+    
+    gameState.playerCells = [cell1, cell2];
+    mouse.x = 500;
+    mouse.y = 500;
+    
+    const initialDistance = Math.abs(cell2.x - cell1.x);
+    updatePlayer();
+    
+    expect(cell1.velocityX).toBeGreaterThan(0);
+    expect(cell2.velocityX).toBeLessThan(0);
+  });
+
+  test('merges cells when very close and cooldown expired', () => {
+    const now = Date.now();
+    const cell1 = { 
+      x: 100, 
+      y: 100, 
+      score: 100, 
+      velocityX: 0, 
+      velocityY: 0,
+      splitTime: now - 20000
+    };
+    const cell2 = { 
+      x: 101, 
+      y: 100, 
+      score: 100, 
+      velocityX: 0, 
+      velocityY: 0,
+      splitTime: now - 20000
+    };
+    
+    gameState.playerCells = [cell1, cell2];
+    mouse.x = 500;
+    mouse.y = 500;
+    
+    updatePlayer();
+    
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(200);
+  });
 });

@@ -68,3 +68,68 @@ describe('calculateCenterOfMass', () => {
     expect(calculateCenterOfMass(cells)).toEqual({ x: 0, y: 0 });
   });
 });
+
+describe('findSafeSpawnLocation', () => {
+  const { findSafeSpawnLocation } = require('../utils.js');
+
+  test('returns a valid position with sparse entities', () => {
+    const gameState = {
+      aiPlayers: [{ x: 100, y: 100, score: 100 }],
+      playerCells: [{ x: 500, y: 500, score: 100 }]
+    };
+
+    const pos = findSafeSpawnLocation(gameState);
+
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('returns a valid position with dense entities', () => {
+    const gameState = {
+      aiPlayers: [
+        { x: 100, y: 100, score: 100 },
+        { x: 200, y: 200, score: 100 },
+        { x: 300, y: 300, score: 100 }
+      ],
+      playerCells: [
+        { x: 400, y: 400, score: 100 },
+        { x: 500, y: 500, score: 100 }
+      ]
+    };
+
+    const pos = findSafeSpawnLocation(gameState);
+
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('returns a valid position with empty game state', () => {
+    const gameState = {
+      aiPlayers: [],
+      playerCells: []
+    };
+
+    const pos = findSafeSpawnLocation(gameState);
+
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('respects minimum distance parameter', () => {
+    const gameState = {
+      aiPlayers: [{ x: 1000, y: 1000, score: 100 }],
+      playerCells: []
+    };
+
+    const pos = findSafeSpawnLocation(gameState, 200);
+
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+  });
+});
