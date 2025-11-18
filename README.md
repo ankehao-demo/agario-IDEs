@@ -14,7 +14,7 @@ This entire application was written from scratch by Cascade in the Windsurf Edit
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd windsurf-demo
+cd agario-IDEs
 ```
 
 2. Install Python dependencies:
