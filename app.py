@@ -1,6 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 import numpy as np
 import json
+import os
 
 app = Flask(__name__)
 
@@ -25,4 +26,5 @@ def update_player():
     return jsonify({'status': 'ok'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug_mode)
