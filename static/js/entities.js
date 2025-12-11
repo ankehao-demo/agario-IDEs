@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Entity management module for player and AI entities.
+ * Handles player movement, cell splitting/merging, AI behavior, and entity initialization.
+ * @module entities
+ */
+
 import { gameState, mouse } from './gameState.js';
 import { getSize, getRandomPosition, calculateCenterOfMass, getDistance } from './utils.js';
 import { 
@@ -14,6 +20,10 @@ import {
     MERGE_START_FORCE
 } from './config.js';
 
+/**
+ * Array of possible names for AI players, themed after popular code editors and IDEs.
+ * @constant {string[]}
+ */
 const AI_NAMES = [
     'Cursor',
     'Zed',
@@ -27,17 +37,31 @@ const AI_NAMES = [
     'Emacs'
 ];
 
-// Function to get an unused AI name
+/**
+ * Retrieves an AI name that is not currently in use by any existing AI player.
+ * Falls back to the first name if all names are taken.
+ * @returns {string} An unused AI name from the AI_NAMES array.
+ * @private
+ */
 function getUnusedAIName() {
     const usedNames = new Set(gameState.aiPlayers.map(ai => ai.name));
     return AI_NAMES.find(name => !usedNames.has(name)) || AI_NAMES[0];
 }
 
+/**
+ * Handles the merging physics and logic for player cells.
+ * Performs a two-pass algorithm: first calculates forces and identifies mergeable cells,
+ * then executes the actual merging. Cells can only merge after MERGE_COOLDOWN has passed
+ * since their last split. Also handles repulsion when cells are too close but can't merge.
+ * @private
+ * @example
+ * // Called automatically in updatePlayer()
+ * updateCellMerging();
+ */
 function updateCellMerging() {
     const now = Date.now();
     const cellsToMerge = [];
 
-    // First pass: calculate merging forces and identify mergeable cells
     for (let i = 0; i < gameState.playerCells.length; i++) {
         const cell1 = gameState.playerCells[i];
         
@@ -164,6 +188,15 @@ function updateCellMerging() {
     }
 }
 
+/**
+ * Updates all player cells based on mouse position input.
+ * Calculates movement direction from screen center to mouse position,
+ * applies velocity with inertia for smooth movement, and constrains
+ * cells within world boundaries. Also triggers cell merging logic.
+ * @example
+ * // Called every frame in the game loop
+ * updatePlayer();
+ */
 export function updatePlayer() {
     const dx = mouse.x - window.innerWidth / 2;
     const dy = mouse.y - window.innerHeight / 2;
@@ -175,32 +208,45 @@ export function updatePlayer() {
             y: dy / distance
         };
 
-        // Update each cell
         gameState.playerCells.forEach(cell => {
-            // Base speed is inversely proportional to cell size
             const speed = 5 / (getSize(cell.score) / 20);
 
-            // Update velocity (with inertia)
             cell.velocityX = cell.velocityX * 0.9 + direction.x * speed * 0.1;
             cell.velocityY = cell.velocityY * 0.9 + direction.y * speed * 0.1;
 
-            // Update position
             cell.x = Math.max(0, Math.min(WORLD_SIZE, cell.x + cell.velocityX));
             cell.y = Math.max(0, Math.min(WORLD_SIZE, cell.y + cell.velocityY));
         });
     }
 
-    // Handle cell merging
     updateCellMerging();
 }
 
+/**
+ * Splits a single player cell into two cells of equal mass.
+ * The new cell is ejected in the direction of the mouse cursor with SPLIT_VELOCITY,
+ * while the original cell receives a smaller recoil in the opposite direction.
+ * Both cells are marked with a splitTime to prevent immediate re-merging.
+ * @param {Object} cell - The player cell to split.
+ * @param {number} cell.x - The x-coordinate of the cell.
+ * @param {number} cell.y - The y-coordinate of the cell.
+ * @param {number} cell.score - The current score of the cell.
+ * @param {number} cell.velocityX - The horizontal velocity of the cell.
+ * @param {number} cell.velocityY - The vertical velocity of the cell.
+ * @returns {void} Returns early if cell score is below MIN_SPLIT_SCORE or max cells reached.
+ * @example
+ * // Split a specific cell
+ * const cell = gameState.playerCells[0];
+ * if (cell.score >= MIN_SPLIT_SCORE) {
+ *   splitPlayerCell(cell);
+ * }
+ */
 export function splitPlayerCell(cell) {
     if (cell.score < MIN_SPLIT_SCORE || 
         gameState.playerCells.length >= MAX_PLAYER_CELLS) {
         return;
     }
 
-    // Calculate split direction (towards mouse)
     const dx = mouse.x - window.innerWidth / 2;
     const dy = mouse.y - window.innerHeight / 2;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -214,7 +260,6 @@ export function splitPlayerCell(cell) {
 
     const now = Date.now();
 
-    // Create new cell
     const newCell = {
         x: cell.x,
         y: cell.y,
@@ -224,18 +269,25 @@ export function splitPlayerCell(cell) {
         splitTime: now
     };
 
-    // Update original cell
     cell.score /= 2;
     cell.velocityX = -direction.x * SPLIT_VELOCITY * 0.5;
     cell.velocityY = -direction.y * SPLIT_VELOCITY * 0.5;
     cell.splitTime = now;
 
-    // Add new cell
     gameState.playerCells.push(newCell);
 }
 
+/**
+ * Handles the player split action triggered by user input (click).
+ * Filters all player cells that meet the minimum score requirement and
+ * splits each one, up to the maximum cell limit.
+ * @example
+ * // Bind to click event for split action
+ * canvas.addEventListener('click', () => {
+ *   handlePlayerSplit();
+ * });
+ */
 export function handlePlayerSplit() {
-    // Split each cell that's large enough
     const cellsToSplit = gameState.playerCells.filter(cell => 
         cell.score >= MIN_SPLIT_SCORE && 
         gameState.playerCells.length < MAX_PLAYER_CELLS
@@ -244,6 +296,15 @@ export function handlePlayerSplit() {
     cellsToSplit.forEach(cell => splitPlayerCell(cell));
 }
 
+/**
+ * Updates all AI player positions using simple random wandering behavior.
+ * Each AI has a 2% chance per frame to change direction randomly.
+ * Movement speed is inversely proportional to size, matching player physics.
+ * AI positions are constrained within world boundaries.
+ * @example
+ * // Called every frame in the game loop
+ * updateAI();
+ */
 export function updateAI() {
     gameState.aiPlayers.forEach(ai => {
         if (Math.random() < 0.02) {
@@ -259,14 +320,22 @@ export function updateAI() {
     });
 }
 
+/**
+ * Initializes all game entities at the start of the game.
+ * Clears existing food and AI players, then populates the world with
+ * FOOD_COUNT food particles and AI_COUNT AI players at random positions.
+ * Each entity is assigned a random HSL color for visual variety.
+ * @example
+ * // Initialize entities when starting a new game
+ * initEntities();
+ * console.log(`Spawned ${gameState.food.length} food items`);
+ */
 export function initEntities() {
-    // Clear existing entities
     gameState.food = [];
     gameState.aiPlayers = [];
     
     console.log('Initializing entities...');
 
-    // Initialize food
     for (let i = 0; i < FOOD_COUNT; i++) {
         const pos = getRandomPosition();
         gameState.food.push({
@@ -276,7 +345,6 @@ export function initEntities() {
         });
     }
 
-    // Initialize AI players
     for (let i = 0; i < AI_COUNT; i++) {
         const pos = getRandomPosition();
         const ai = {
@@ -297,7 +365,24 @@ export function initEntities() {
     });
 }
 
-// Export for use in other modules
+/**
+ * Creates and returns a new AI player object with random attributes.
+ * Used to respawn AI players after they are consumed.
+ * The new AI gets a random position, color, direction, and an unused name.
+ * @returns {Object} A new AI player object ready to be added to gameState.aiPlayers.
+ * @returns {number} returns.x - Random x-coordinate in world space.
+ * @returns {number} returns.y - Random y-coordinate in world space.
+ * @returns {number} returns.score - Starting score (AI_STARTING_SCORE).
+ * @returns {string} returns.color - Random HSL color string.
+ * @returns {number} returns.direction - Random direction in radians.
+ * @returns {string} returns.name - An unused AI name.
+ * @example
+ * // Respawn an AI at a safe location
+ * const newAI = respawnAI();
+ * newAI.x = safePosition.x;
+ * newAI.y = safePosition.y;
+ * gameState.aiPlayers.push(newAI);
+ */
 export function respawnAI() {
     const pos = getRandomPosition();
     const name = getUnusedAIName();

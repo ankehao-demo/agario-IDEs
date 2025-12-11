@@ -1,10 +1,25 @@
+/**
+ * @fileoverview Collision detection and handling module.
+ * Manages all collision interactions between game entities including
+ * food consumption, player-AI collisions, and AI-AI collisions.
+ * @module collisions
+ */
+
 import { gameState } from './gameState.js';
 import { getDistance, getSize, getRandomPosition, findSafeSpawnLocation } from './utils.js';
 import { FOOD_SIZE, FOOD_SCORE, COLLISION_THRESHOLD, FOOD_COUNT, AI_COUNT, STARTING_SCORE, WORLD_SIZE } from './config.js';
 import { respawnAI } from './entities.js';
 
+/**
+ * Handles collision detection between all cells (player and AI) and food particles.
+ * When a cell overlaps with food, the food is consumed and the cell gains FOOD_SCORE points.
+ * Food particles are removed from the game state when consumed.
+ * @example
+ * // Called every frame to check food collisions
+ * handleFoodCollisions();
+ * // Player and AI scores increase when they eat food
+ */
 export function handleFoodCollisions() {
-    // Player cells eating food
     for (const playerCell of gameState.playerCells) {
         gameState.food = gameState.food.filter(food => {
             const distance = getDistance(playerCell, food);
@@ -18,7 +33,6 @@ export function handleFoodCollisions() {
         });
     }
 
-    // AI eating food
     for (const ai of gameState.aiPlayers) {
         gameState.food = gameState.food.filter(food => {
             const distance = getDistance(ai, food);
@@ -33,13 +47,22 @@ export function handleFoodCollisions() {
     }
 }
 
+/**
+ * Handles collision detection and resolution between player cells and AI players.
+ * Uses COLLISION_THRESHOLD to determine if one entity can consume another.
+ * The larger entity must be at least COLLISION_THRESHOLD times bigger to consume.
+ * Consumed entities are removed and their score is transferred to the consumer.
+ * If all player cells are consumed, the player respawns at a safe location.
+ * @example
+ * // Called every frame to check player-AI collisions
+ * handlePlayerAICollisions();
+ * // Handles both player eating AI and AI eating player
+ */
 export function handlePlayerAICollisions() {
-    // Track changes to make after all collision checks
     const aiIndicesToRemove = new Set();
     const playerCellsToRemove = new Set();
-    const scoreGains = new Map(); // Map of cell index to score gain
+    const scoreGains = new Map();
 
-    // Check each player cell against each AI
     gameState.playerCells.forEach((playerCell, playerCellIndex) => {
         gameState.aiPlayers.forEach((ai, aiIndex) => {
             if (aiIndicesToRemove.has(aiIndex)) return;
@@ -97,9 +120,19 @@ export function handlePlayerAICollisions() {
     }
 }
 
+/**
+ * Handles collision detection and resolution between AI players.
+ * When two AI players collide, the larger one (by COLLISION_THRESHOLD) consumes the smaller.
+ * Uses a two-pass approach: first identifies collisions, then applies changes to avoid
+ * concurrent modification issues.
+ * @example
+ * // Called every frame to check AI-AI collisions
+ * handleAIAICollisions();
+ * // Larger AI players consume smaller ones
+ */
 export function handleAIAICollisions() {
     const aisToRemove = new Set();
-    const scoreGains = new Map(); // Map of AI index to score gain
+    const scoreGains = new Map();
 
     for (let i = 0; i < gameState.aiPlayers.length; i++) {
         if (aisToRemove.has(i)) continue;
@@ -143,8 +176,17 @@ export function handleAIAICollisions() {
     });
 }
 
+/**
+ * Maintains the target population of food and AI players in the game world.
+ * Respawns food particles up to FOOD_COUNT and AI players up to AI_COUNT.
+ * Also ensures the player always has at least one cell by respawning if needed.
+ * New entities are spawned at safe locations away from existing players.
+ * @example
+ * // Called every frame after collision handling
+ * respawnEntities();
+ * // Keeps food and AI counts at configured levels
+ */
 export function respawnEntities() {
-    // Respawn food if needed
     while (gameState.food.length < FOOD_COUNT) {
         const pos = getRandomPosition();
         gameState.food.push({
