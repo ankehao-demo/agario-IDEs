@@ -1,6 +1,6 @@
 export const WORLD_SIZE = 2000;
 export const FOOD_SIZE = 5;
-export const STARTING_SCORE = 100;
+export const STARTING_SCORE = 100; // Initial score for new players
 export const AI_STARTING_SCORE = 50;  // Starting score for AI players
 export const FOOD_SCORE = 10;
 export const FOOD_COUNT = 100;
