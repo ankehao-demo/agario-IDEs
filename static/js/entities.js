@@ -40,12 +40,14 @@ function updateCellMerging() {
     // First pass: calculate merging forces and identify mergeable cells
     for (let i = 0; i < gameState.playerCells.length; i++) {
         const cell1 = gameState.playerCells[i];
+        if (!cell1 || typeof cell1.score !== 'number') continue;
         
         // Skip if cell is already marked for merging
         if (cellsToMerge.includes(i)) continue;
 
         for (let j = i + 1; j < gameState.playerCells.length; j++) {
             const cell2 = gameState.playerCells[j];
+            if (!cell2 || typeof cell2.score !== 'number') continue;
             
             // Skip if cell is already marked for merging
             if (cellsToMerge.includes(j)) continue;
@@ -72,10 +74,10 @@ function updateCellMerging() {
                     const force = MERGE_FORCE;
                     const factor = force / Math.max(1, distance);
 
-                    cell1.velocityX += dx * factor;
-                    cell1.velocityY += dy * factor;
-                    cell2.velocityX -= dx * factor;
-                    cell2.velocityY -= dy * factor;
+                    cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
+                    cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
+                    cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
+                    cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
                 }
             } else {
                 // Calculate repulsion when too close
@@ -86,10 +88,10 @@ function updateCellMerging() {
                     const dy = cell2.y - cell1.y;
                     
                     // Apply repulsion
-                    cell1.velocityX -= dx * repulsionFactor;
-                    cell1.velocityY -= dy * repulsionFactor;
-                    cell2.velocityX += dx * repulsionFactor;
-                    cell2.velocityY += dy * repulsionFactor;
+                    cell1.velocityX = (cell1.velocityX || 0) - dx * repulsionFactor;
+                    cell1.velocityY = (cell1.velocityY || 0) - dy * repulsionFactor;
+                    cell2.velocityX = (cell2.velocityX || 0) + dx * repulsionFactor;
+                    cell2.velocityY = (cell2.velocityY || 0) + dy * repulsionFactor;
                 }
                 
                 // Apply attraction force if not too close
@@ -99,10 +101,10 @@ function updateCellMerging() {
                     const force = canMerge ? MERGE_FORCE : MERGE_START_FORCE;
                     const factor = force / Math.max(1, distance);
 
-                    cell1.velocityX += dx * factor;
-                    cell1.velocityY += dy * factor;
-                    cell2.velocityX -= dx * factor;
-                    cell2.velocityY -= dy * factor;
+                    cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
+                    cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
+                    cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
+                    cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
                 }
             }
         }
@@ -177,16 +179,18 @@ export function updatePlayer() {
 
         // Update each cell
         gameState.playerCells.forEach(cell => {
+            if (!cell || typeof cell.score !== 'number') return;
+            
             // Base speed is inversely proportional to cell size
             const speed = 5 / (getSize(cell.score) / 20);
 
             // Update velocity (with inertia)
-            cell.velocityX = cell.velocityX * 0.9 + direction.x * speed * 0.1;
-            cell.velocityY = cell.velocityY * 0.9 + direction.y * speed * 0.1;
+            cell.velocityX = (cell.velocityX || 0) * 0.9 + direction.x * speed * 0.1;
+            cell.velocityY = (cell.velocityY || 0) * 0.9 + direction.y * speed * 0.1;
 
             // Update position
-            cell.x = Math.max(0, Math.min(WORLD_SIZE, cell.x + cell.velocityX));
-            cell.y = Math.max(0, Math.min(WORLD_SIZE, cell.y + cell.velocityY));
+            cell.x = Math.max(0, Math.min(WORLD_SIZE, (cell.x || 0) + cell.velocityX));
+            cell.y = Math.max(0, Math.min(WORLD_SIZE, (cell.y || 0) + cell.velocityY));
         });
     }
 
@@ -195,6 +199,10 @@ export function updatePlayer() {
 }
 
 export function splitPlayerCell(cell) {
+    if (!cell || typeof cell.score !== 'number') {
+        return;
+    }
+    
     if (cell.score < MIN_SPLIT_SCORE || 
         gameState.playerCells.length >= MAX_PLAYER_CELLS) {
         return;
@@ -237,6 +245,8 @@ export function splitPlayerCell(cell) {
 export function handlePlayerSplit() {
     // Split each cell that's large enough
     const cellsToSplit = gameState.playerCells.filter(cell => 
+        cell && 
+        typeof cell.score === 'number' &&
         cell.score >= MIN_SPLIT_SCORE && 
         gameState.playerCells.length < MAX_PLAYER_CELLS
     );

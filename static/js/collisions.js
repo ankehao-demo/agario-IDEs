@@ -6,12 +6,17 @@ import { respawnAI } from './entities.js';
 export function handleFoodCollisions() {
     // Player cells eating food
     for (const playerCell of gameState.playerCells) {
+        if (!playerCell || typeof playerCell.score !== 'number') continue;
+        
         gameState.food = gameState.food.filter(food => {
+            if (!food) return true;
+            
             const distance = getDistance(playerCell, food);
             const playerSize = getSize(playerCell.score);
 
             if (distance < playerSize + FOOD_SIZE) {
-                playerCell.score += FOOD_SCORE;
+                // Prevent score overflow
+                playerCell.score = Math.min(Number.MAX_SAFE_INTEGER, playerCell.score + FOOD_SCORE);
                 return false;
             }
             return true;
@@ -20,12 +25,17 @@ export function handleFoodCollisions() {
 
     // AI eating food
     for (const ai of gameState.aiPlayers) {
+        if (!ai || typeof ai.score !== 'number') continue;
+        
         gameState.food = gameState.food.filter(food => {
+            if (!food) return true;
+            
             const distance = getDistance(ai, food);
             const aiSize = getSize(ai.score);
 
             if (distance < aiSize + FOOD_SIZE) {
-                ai.score += FOOD_SCORE;
+                // Prevent score overflow
+                ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + FOOD_SCORE);
                 return false;
             }
             return true;
@@ -41,7 +51,10 @@ export function handlePlayerAICollisions() {
 
     // Check each player cell against each AI
     gameState.playerCells.forEach((playerCell, playerCellIndex) => {
+        if (!playerCell || typeof playerCell.score !== 'number') return;
+        
         gameState.aiPlayers.forEach((ai, aiIndex) => {
+            if (!ai || typeof ai.score !== 'number') return;
             if (aiIndicesToRemove.has(aiIndex)) return;
             if (playerCellsToRemove.has(playerCellIndex)) return;
 
@@ -59,7 +72,8 @@ export function handlePlayerAICollisions() {
                 }
                 // AI is bigger
                 else if (aiSize > playerSize * COLLISION_THRESHOLD) {
-                    ai.score += playerCell.score + 100;
+                    // Prevent score overflow
+                    ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
                     playerCellsToRemove.add(playerCellIndex);
                 }
             }
@@ -74,8 +88,9 @@ export function handlePlayerAICollisions() {
 
     // Apply score gains to surviving player cells
     scoreGains.forEach((gain, cellIndex) => {
-        if (!playerCellsToRemove.has(cellIndex)) {
-            gameState.playerCells[cellIndex].score += gain;
+        if (!playerCellsToRemove.has(cellIndex) && gameState.playerCells[cellIndex]) {
+            // Prevent score overflow
+            gameState.playerCells[cellIndex].score = Math.min(Number.MAX_SAFE_INTEGER, gameState.playerCells[cellIndex].score + gain);
         }
     });
 
@@ -103,12 +118,15 @@ export function handleAIAICollisions() {
 
     for (let i = 0; i < gameState.aiPlayers.length; i++) {
         if (aisToRemove.has(i)) continue;
+        
+        const ai1 = gameState.aiPlayers[i];
+        if (!ai1 || typeof ai1.score !== 'number') continue;
 
         for (let j = i + 1; j < gameState.aiPlayers.length; j++) {
             if (aisToRemove.has(j)) continue;
-
-            const ai1 = gameState.aiPlayers[i];
+            
             const ai2 = gameState.aiPlayers[j];
+            if (!ai2 || typeof ai2.score !== 'number') continue;
             
             const distance = getDistance(ai1, ai2);
             const ai1Size = getSize(ai1.score);
@@ -132,8 +150,9 @@ export function handleAIAICollisions() {
 
     // Apply score gains to surviving AIs
     scoreGains.forEach((gain, aiIndex) => {
-        if (!aisToRemove.has(aiIndex)) {
-            gameState.aiPlayers[aiIndex].score += gain;
+        if (!aisToRemove.has(aiIndex) && gameState.aiPlayers[aiIndex]) {
+            // Prevent score overflow
+            gameState.aiPlayers[aiIndex].score = Math.min(Number.MAX_SAFE_INTEGER, gameState.aiPlayers[aiIndex].score + gain);
         }
     });
 
