@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Agar.io clone game",
   "main": "app.py",
-  "scripts": {
-    "test": "jest"
-  },
+    "scripts": {
+      "test": "jest",
+      "test:coverage": "jest --coverage"
+    },
   "devDependencies": {
     "@babel/core": "^7.23.2",
     "@babel/preset-env": "^7.23.2",
