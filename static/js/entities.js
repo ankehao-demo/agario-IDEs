@@ -33,137 +33,139 @@ function getUnusedAIName() {
     return AI_NAMES.find(name => !usedNames.has(name)) || AI_NAMES[0];
 }
 
+/**
+ * Apply a velocity force between two cells.
+ * Positive forceFactor attracts cell1 toward cell2; negative repels.
+ */
+function applyForceBetweenCells(cell1, cell2, forceFactor) {
+    const dx = cell2.x - cell1.x;
+    const dy = cell2.y - cell1.y;
+
+    cell1.velocityX = (cell1.velocityX || 0) + dx * forceFactor;
+    cell1.velocityY = (cell1.velocityY || 0) + dy * forceFactor;
+    cell2.velocityX = (cell2.velocityX || 0) - dx * forceFactor;
+    cell2.velocityY = (cell2.velocityY || 0) - dy * forceFactor;
+}
+
+/**
+ * Handle the physics interaction between a pair of player cells.
+ * Returns true if the pair should be marked for merging.
+ */
+function handleCellPairInteraction(cell1, cell2, canMerge, distance, minMergeDistance, minDistance) {
+    if (distance < minMergeDistance && canMerge) {
+        if (distance < minDistance * 0.5) {
+            return true; // Mark for merging
+        }
+        // Strong attraction force when close to merging
+        const factor = MERGE_FORCE / Math.max(1, distance);
+        applyForceBetweenCells(cell1, cell2, factor);
+        return false;
+    }
+
+    // Calculate repulsion when too close
+    if (distance < minDistance) {
+        const repulsionStrength = 0.3;
+        const repulsionFactor = (minDistance - distance) / minDistance * repulsionStrength;
+        applyForceBetweenCells(cell1, cell2, -repulsionFactor);
+    }
+
+    // Apply attraction force if not too close
+    if (distance > minDistance) {
+        const force = canMerge ? MERGE_FORCE : MERGE_START_FORCE;
+        const factor = force / Math.max(1, distance);
+        applyForceBetweenCells(cell1, cell2, factor);
+    }
+
+    return false;
+}
+
+/**
+ * Group sorted descending indices into consecutive groups for batch merging.
+ */
+function groupConsecutiveIndices(uniqueIndices) {
+    const groups = [];
+    let currentGroup = [uniqueIndices[0]];
+
+    for (let i = 1; i < uniqueIndices.length; i++) {
+        const current = uniqueIndices[i];
+        const prev = currentGroup[currentGroup.length - 1];
+
+        if (prev - current === 1) {
+            currentGroup.push(current);
+        } else {
+            groups.push(currentGroup);
+            currentGroup = [current];
+        }
+    }
+    groups.push(currentGroup);
+    return groups;
+}
+
+/**
+ * Merge a group of player cells into a single cell.
+ */
+function mergeCellGroup(group) {
+    const cells = group.map(index => gameState.playerCells[index]);
+
+    const totalScore = cells.reduce((sum, cell) => sum + cell.score, 0);
+    const weightedX = cells.reduce((sum, cell) => sum + cell.x * cell.score, 0) / totalScore;
+    const weightedY = cells.reduce((sum, cell) => sum + cell.y * cell.score, 0) / totalScore;
+    const avgVelocityX = cells.reduce((sum, cell) => sum + cell.velocityX * cell.score, 0) / totalScore;
+    const avgVelocityY = cells.reduce((sum, cell) => sum + cell.velocityY * cell.score, 0) / totalScore;
+
+    // Remove old cells (in reverse order to maintain correct indices)
+    group.sort((a, b) => b - a).forEach(index => {
+        gameState.playerCells.splice(index, 1);
+    });
+
+    // Add merged cell with combined score
+    gameState.playerCells.push({
+        x: weightedX,
+        y: weightedY,
+        score: totalScore,
+        velocityX: avgVelocityX,
+        velocityY: avgVelocityY,
+        splitTime: 0
+    });
+}
+
 function updateCellMerging() {
     const now = Date.now();
     const cellsToMerge = [];
 
-    // First pass: calculate merging forces and identify mergeable cells
     for (let i = 0; i < gameState.playerCells.length; i++) {
         const cell1 = gameState.playerCells[i];
         if (!cell1 || typeof cell1.score !== 'number') continue;
-        
-        // Skip if cell is already marked for merging
         if (cellsToMerge.includes(i)) continue;
 
         for (let j = i + 1; j < gameState.playerCells.length; j++) {
             const cell2 = gameState.playerCells[j];
             if (!cell2 || typeof cell2.score !== 'number') continue;
-            
-            // Skip if cell is already marked for merging
             if (cellsToMerge.includes(j)) continue;
 
             const distance = getDistance(cell1, cell2);
             const cell1Size = getSize(cell1.score);
             const cell2Size = getSize(cell2.score);
             const minMergeDistance = (cell1Size + cell2Size) * MERGE_DISTANCE;
-            const minDistance = cell1Size + cell2Size;  // Minimum distance before repulsion
+            const minDistance = cell1Size + cell2Size;
 
-            // Calculate time since split
             const timeSinceSplit1 = now - (cell1.splitTime || 0);
             const timeSinceSplit2 = now - (cell2.splitTime || 0);
             const canMerge = timeSinceSplit1 > MERGE_COOLDOWN && timeSinceSplit2 > MERGE_COOLDOWN;
 
-            if (distance < minMergeDistance && canMerge) {
-                // Mark cells for merging only if they're very close
-                if (distance < minDistance * 0.5) {
-                    cellsToMerge.push(i, j);
-                } else {
-                    // Strong attraction force when close to merging
-                    const dx = cell2.x - cell1.x;
-                    const dy = cell2.y - cell1.y;
-                    const force = MERGE_FORCE;
-                    const factor = force / Math.max(1, distance);
-
-                    cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
-                    cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
-                    cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
-                    cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
-                }
-            } else {
-                // Calculate repulsion when too close
-                if (distance < minDistance) {
-                    const repulsionStrength = 0.3;  // Adjust this to control repulsion strength
-                    const repulsionFactor = (minDistance - distance) / minDistance * repulsionStrength;
-                    const dx = cell2.x - cell1.x;
-                    const dy = cell2.y - cell1.y;
-                    
-                    // Apply repulsion
-                    cell1.velocityX = (cell1.velocityX || 0) - dx * repulsionFactor;
-                    cell1.velocityY = (cell1.velocityY || 0) - dy * repulsionFactor;
-                    cell2.velocityX = (cell2.velocityX || 0) + dx * repulsionFactor;
-                    cell2.velocityY = (cell2.velocityY || 0) + dy * repulsionFactor;
-                }
-                
-                // Apply attraction force if not too close
-                if (distance > minDistance) {
-                    const dx = cell2.x - cell1.x;
-                    const dy = cell2.y - cell1.y;
-                    const force = canMerge ? MERGE_FORCE : MERGE_START_FORCE;
-                    const factor = force / Math.max(1, distance);
-
-                    cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
-                    cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
-                    cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
-                    cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
-                }
+            const shouldMerge = handleCellPairInteraction(cell1, cell2, canMerge, distance, minMergeDistance, minDistance);
+            if (shouldMerge) {
+                cellsToMerge.push(i, j);
             }
         }
     }
 
-    // Second pass: merge cells
-    if (cellsToMerge.length > 0) {
-        // Sort indices in descending order to remove from end first
-        cellsToMerge.sort((a, b) => b - a);
-        
-        // Get unique indices
-        const uniqueIndices = [...new Set(cellsToMerge)];
-        
-        // Group cells to merge
-        const groups = [];
-        let currentGroup = [uniqueIndices[0]];
-        
-        for (let i = 1; i < uniqueIndices.length; i++) {
-            const current = uniqueIndices[i];
-            const prev = currentGroup[currentGroup.length - 1];
-            
-            if (prev - current === 1) {
-                currentGroup.push(current);
-            } else {
-                groups.push(currentGroup);
-                currentGroup = [current];
-            }
-        }
-        groups.push(currentGroup);
+    if (cellsToMerge.length === 0) return;
 
-        // Merge each group
-        groups.forEach(group => {
-            const cells = group.map(index => gameState.playerCells[index]);
-            
-            // Calculate total score and weighted position
-            const totalScore = cells.reduce((sum, cell) => sum + cell.score, 0);
-            const weightedX = cells.reduce((sum, cell) => sum + cell.x * cell.score, 0) / totalScore;
-            const weightedY = cells.reduce((sum, cell) => sum + cell.y * cell.score, 0) / totalScore;
-            
-            // Calculate average velocity weighted by mass
-            const avgVelocityX = cells.reduce((sum, cell) => sum + cell.velocityX * cell.score, 0) / totalScore;
-            const avgVelocityY = cells.reduce((sum, cell) => sum + cell.velocityY * cell.score, 0) / totalScore;
-
-            // Remove old cells (in reverse order to maintain correct indices)
-            group.sort((a, b) => b - a).forEach(index => {
-                gameState.playerCells.splice(index, 1);
-            });
-
-            // Add merged cell with combined score
-            gameState.playerCells.push({
-                x: weightedX,
-                y: weightedY,
-                score: totalScore,  // This is the sum of all merged cell scores
-                velocityX: avgVelocityX,
-                velocityY: avgVelocityY,
-                splitTime: 0  // Reset split time for merged cell
-            });
-        });
-    }
+    cellsToMerge.sort((a, b) => b - a);
+    const uniqueIndices = [...new Set(cellsToMerge)];
+    const groups = groupConsecutiveIndices(uniqueIndices);
+    groups.forEach(group => mergeCellGroup(group));
 }
 
 export function updatePlayer() {
