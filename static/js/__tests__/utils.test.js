@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,56 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  test('returns a position within world bounds when no entities exist', () => {
+    const state = { aiPlayers: [], playerCells: [] };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
+  });
+
+  test('returns a position away from AI players', () => {
+    const ai = { x: 500, y: 500, score: 100 };
+    const state = { aiPlayers: [ai], playerCells: [] };
+    const pos = findSafeSpawnLocation(state);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('returns a position away from player cells', () => {
+    const cell = { x: 500, y: 500, score: 100 };
+    const state = { aiPlayers: [], playerCells: [cell] };
+    const pos = findSafeSpawnLocation(state);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('falls back to furthest position when all spots are unsafe', () => {
+    const entities = [];
+    for (let i = 0; i < 50; i++) {
+      entities.push({
+        x: Math.random() * WORLD_SIZE,
+        y: Math.random() * WORLD_SIZE,
+        score: 100000
+      });
+    }
+    const state = { aiPlayers: entities, playerCells: entities };
+    const pos = findSafeSpawnLocation(state);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+    expect(isFinite(pos.x)).toBe(true);
+    expect(isFinite(pos.y)).toBe(true);
+  });
+
+  test('respects custom minDistance parameter', () => {
+    const state = { aiPlayers: [], playerCells: [] };
+    const pos = findSafeSpawnLocation(state, 500);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
   });
 });

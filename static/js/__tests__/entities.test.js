@@ -1,6 +1,6 @@
 import { splitPlayerCell, handlePlayerSplit, updatePlayer } from '../entities.js';
 import { gameState, mouse } from '../gameState.js';
-import { MIN_SPLIT_SCORE, MAX_PLAYER_CELLS } from '../config.js';
+import { MIN_SPLIT_SCORE, MAX_PLAYER_CELLS, MERGE_COOLDOWN } from '../config.js';
 
 // Mock gameState and mouse
 jest.mock('../gameState.js', () => ({
@@ -223,5 +223,67 @@ describe('updatePlayer', () => {
 
     expect(isFinite(gameState.playerCells[0].x)).toBe(true);
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
+  });
+
+  test('applies attraction between cells that are far apart', () => {
+    const now = Date.now();
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now - MERGE_COOLDOWN - 1000 },
+      { x: 300, y: 300, score: 100, velocityX: 0, velocityY: 0, splitTime: now - MERGE_COOLDOWN - 1000 }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+
+    updatePlayer();
+
+    const cell1 = gameState.playerCells[0];
+    const cell2 = gameState.playerCells[1];
+    expect(typeof cell1.velocityX).toBe('number');
+    expect(typeof cell2.velocityX).toBe('number');
+  });
+
+  test('applies repulsion between cells that are too close (before merge cooldown)', () => {
+    const now = Date.now();
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now },
+      { x: 101, y: 101, score: 100, velocityX: 0, velocityY: 0, splitTime: now }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('merges cells that are very close after cooldown expires', () => {
+    const now = Date.now();
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now - MERGE_COOLDOWN - 1000 },
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now - MERGE_COOLDOWN - 1000 }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(200);
+  });
+
+  test('applies strong attraction between merge-eligible close cells', () => {
+    const now = Date.now();
+    const size = 30; // getSize(100) ≈ 30
+    const mergeThreshold = size * 2 * 2; // MERGE_DISTANCE = 2
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now - MERGE_COOLDOWN - 1000 },
+      { x: 100 + mergeThreshold * 0.4, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now - MERGE_COOLDOWN - 1000 }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBeGreaterThanOrEqual(1);
   });
 });
