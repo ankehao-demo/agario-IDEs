@@ -195,4 +195,58 @@ describe('handleAIAICollisions', () => {
       expect(ai.score).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
     });
   });
+
+  test('smaller AI gets consumed by larger AI (second is larger)', () => {
+    const ai1 = { x: 100, y: 100, score: 100 };
+    const ai2 = { x: 100, y: 100, score: 400 };
+
+    gameState.aiPlayers = [ai1, ai2];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(1);
+    expect(gameState.aiPlayers[0].score).toBe(600);
+  });
+
+  test('handles multiple AIs with chain collisions', () => {
+    gameState.aiPlayers = [
+      { x: 100, y: 100, score: 800 },
+      { x: 100, y: 100, score: 100 },
+      { x: 100, y: 100, score: 100 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBeLessThan(3);
+  });
+
+  test('AIs far apart do not collide', () => {
+    gameState.aiPlayers = [
+      { x: 0, y: 0, score: 400 },
+      { x: 2000, y: 2000, score: 100 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(2);
+  });
+
+  test('handles null entries in AI array', () => {
+    gameState.aiPlayers = [
+      { x: 100, y: 100, score: 400 },
+      null,
+      { x: 100, y: 100, score: 100 }
+    ];
+
+    expect(() => handleAIAICollisions()).not.toThrow();
+  });
+
+  test('handles AI with non-number score', () => {
+    gameState.aiPlayers = [
+      { x: 100, y: 100, score: 'invalid' },
+      { x: 100, y: 100, score: 100 }
+    ];
+
+    expect(() => handleAIAICollisions()).not.toThrow();
+  });
 });
