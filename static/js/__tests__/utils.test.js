@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,71 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  test('returns a position within world bounds with no entities', () => {
+    const state = { aiPlayers: [], playerCells: [] };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
+  });
+
+  test('returns a position when entities are present but space exists', () => {
+    const state = {
+      aiPlayers: [{ x: 100, y: 100, score: 100 }],
+      playerCells: [{ x: 200, y: 200, score: 100 }]
+    };
+    const pos = findSafeSpawnLocation(state);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('falls back to furthest position when no safe spot found', () => {
+    const entities = [];
+    for (let i = 0; i < 50; i++) {
+      entities.push({
+        x: Math.random() * WORLD_SIZE,
+        y: Math.random() * WORLD_SIZE,
+        score: 100000
+      });
+    }
+    const state = { aiPlayers: entities, playerCells: entities };
+    const pos = findSafeSpawnLocation(state, 99999);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('respects custom minDistance parameter', () => {
+    const state = {
+      aiPlayers: [{ x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, score: 100 }],
+      playerCells: []
+    };
+    const pos = findSafeSpawnLocation(state, 50);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('handles empty aiPlayers with populated playerCells', () => {
+    const state = {
+      aiPlayers: [],
+      playerCells: [{ x: 500, y: 500, score: 100 }]
+    };
+    const pos = findSafeSpawnLocation(state);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('handles populated aiPlayers with empty playerCells', () => {
+    const state = {
+      aiPlayers: [{ x: 500, y: 500, score: 100 }],
+      playerCells: []
+    };
+    const pos = findSafeSpawnLocation(state);
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
   });
 });
