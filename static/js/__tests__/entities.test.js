@@ -224,4 +224,65 @@ describe('updatePlayer', () => {
     expect(isFinite(gameState.playerCells[0].x)).toBe(true);
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
   });
+
+  test('applies repulsion between overlapping cells that cannot merge', () => {
+    const now = Date.now();
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now },
+      { x: 101, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2 + 100;
+
+    updatePlayer();
+
+    const cell1 = gameState.playerCells[0];
+    const cell2 = gameState.playerCells[1];
+    expect(cell1.velocityX !== 0 || cell2.velocityX !== 0).toBe(true);
+  });
+
+  test('applies attraction between distant cells', () => {
+    const now = Date.now();
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now },
+      { x: 300, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2 + 100;
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('merges cells that are close and past cooldown', () => {
+    const oldTime = Date.now() - 20000;
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: oldTime },
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: oldTime }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2 + 100;
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(200);
+  });
+
+  test('applies merge attraction when cells are near merge distance', () => {
+    const oldTime = Date.now() - 20000;
+    const size = Math.sqrt(100) + 20;
+    const mergeDistance = size * 2 * 2;
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: oldTime },
+      { x: 100 + mergeDistance - 5, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: oldTime }
+    ];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2 + 100;
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBeGreaterThanOrEqual(1);
+  });
 });

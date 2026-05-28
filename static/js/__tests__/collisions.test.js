@@ -146,6 +146,30 @@ describe('handleAIAICollisions', () => {
     expect(gameState.aiPlayers[0].score).toBe(600);  // 400 + 100 + 100 bonus
   });
 
+  test('smaller AI is consumed by larger AI (reverse order)', () => {
+    const ai1 = { x: 100, y: 100, score: 100 };
+    const ai2 = { x: 100, y: 100, score: 400 };
+
+    gameState.aiPlayers = [ai1, ai2];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(1);
+    expect(gameState.aiPlayers[0].score).toBe(600);
+  });
+
+  test('handles chain of AI collisions correctly', () => {
+    const ai1 = { x: 100, y: 100, score: 400 };
+    const ai2 = { x: 100, y: 100, score: 100 };
+    const ai3 = { x: 100, y: 100, score: 50 };
+
+    gameState.aiPlayers = [ai1, ai2, ai3];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(1);
+  });
+
   test('equal sized AIs do not consume each other', () => {
     const ai1 = { x: 100, y: 100, score: 100 };
     const ai2 = { x: 100, y: 100, score: 100 };

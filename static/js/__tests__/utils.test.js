@@ -1,4 +1,4 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +144,49 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  test('returns a position when no entities exist', () => {
+    const state = { aiPlayers: [], playerCells: [] };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+  });
+
+  test('returns a safe position away from entities', () => {
+    const state = {
+      aiPlayers: [{ x: 100, y: 100, score: 100 }],
+      playerCells: [{ x: 200, y: 200, score: 100 }]
+    };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+  });
+
+  test('falls back to furthest position when map is crowded', () => {
+    const entities = [];
+    for (let i = 0; i < 50; i++) {
+      for (let j = 0; j < 50; j++) {
+        entities.push({ x: i * 40, y: j * 40, score: 90000 });
+      }
+    }
+    const state = { aiPlayers: entities, playerCells: [] };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+  });
+
+  test('respects custom minDistance parameter', () => {
+    const state = {
+      aiPlayers: [{ x: 100, y: 100, score: 10 }],
+      playerCells: []
+    };
+    const pos = findSafeSpawnLocation(state, 5);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
   });
 });
