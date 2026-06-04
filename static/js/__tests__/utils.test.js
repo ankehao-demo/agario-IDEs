@@ -1,4 +1,4 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +144,61 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  test('returns a position with empty entity lists', () => {
+    const state = { aiPlayers: [], playerCells: [] };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('returns a position away from AI players', () => {
+    const state = {
+      aiPlayers: [{ x: 500, y: 500, score: 100 }],
+      playerCells: []
+    };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+  });
+
+  test('returns a position away from player cells', () => {
+    const state = {
+      aiPlayers: [],
+      playerCells: [{ x: 500, y: 500, score: 100 }]
+    };
+    const pos = findSafeSpawnLocation(state);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+  });
+
+  test('falls back to furthest position when all spots are blocked', () => {
+    const entities = [];
+    for (let x = 0; x <= 1000; x += 50) {
+      for (let y = 0; y <= 1000; y += 50) {
+        entities.push({ x, y, score: 10000 });
+      }
+    }
+    const state = { aiPlayers: entities, playerCells: [] };
+    const pos = findSafeSpawnLocation(state, 5000);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+  });
+
+  test('respects custom minDistance parameter', () => {
+    const state = {
+      aiPlayers: [{ x: 500, y: 500, score: 100 }],
+      playerCells: []
+    };
+    const pos = findSafeSpawnLocation(state, 1);
+    expect(pos).toHaveProperty('x');
+    expect(pos).toHaveProperty('y');
   });
 });

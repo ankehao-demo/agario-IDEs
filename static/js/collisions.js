@@ -3,103 +3,84 @@ import { getDistance, getSize, getRandomPosition, findSafeSpawnLocation } from '
 import { FOOD_SIZE, FOOD_SCORE, COLLISION_THRESHOLD, FOOD_COUNT, AI_COUNT, STARTING_SCORE, WORLD_SIZE } from './config.js';
 import { respawnAI } from './entities.js';
 
-export function handleFoodCollisions() {
-    // Player cells eating food
-    for (const playerCell of gameState.playerCells) {
-        if (!playerCell || typeof playerCell.score !== 'number') continue;
-        
-        gameState.food = gameState.food.filter(food => {
-            if (!food) return true;
-            
-            const distance = getDistance(playerCell, food);
-            const playerSize = getSize(playerCell.score);
+function isValidEntity(entity) {
+    return entity && typeof entity.score === 'number';
+}
 
-            if (distance < playerSize + FOOD_SIZE) {
-                // Prevent score overflow
-                playerCell.score = Math.min(Number.MAX_SAFE_INTEGER, playerCell.score + FOOD_SCORE);
-                return false;
-            }
-            return true;
-        });
+function tryEatFood(entity, food) {
+    if (!food) return false;
+    const distance = getDistance(entity, food);
+    const entitySize = getSize(entity.score);
+    if (distance < entitySize + FOOD_SIZE) {
+        entity.score = Math.min(Number.MAX_SAFE_INTEGER, entity.score + FOOD_SCORE);
+        return true;
+    }
+    return false;
+}
+
+export function handleFoodCollisions() {
+    for (const playerCell of gameState.playerCells) {
+        if (!isValidEntity(playerCell)) continue;
+        gameState.food = gameState.food.filter(food => !tryEatFood(playerCell, food));
     }
 
-    // AI eating food
     for (const ai of gameState.aiPlayers) {
-        if (!ai || typeof ai.score !== 'number') continue;
-        
-        gameState.food = gameState.food.filter(food => {
-            if (!food) return true;
-            
-            const distance = getDistance(ai, food);
-            const aiSize = getSize(ai.score);
-
-            if (distance < aiSize + FOOD_SIZE) {
-                // Prevent score overflow
-                ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + FOOD_SCORE);
-                return false;
-            }
-            return true;
-        });
+        if (!isValidEntity(ai)) continue;
+        gameState.food = gameState.food.filter(food => !tryEatFood(ai, food));
     }
 }
 
+function checkPlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, context) {
+    if (!isValidEntity(ai)) return;
+    if (context.aiIndicesToRemove.has(aiIndex)) return;
+    if (context.playerCellsToRemove.has(playerCellIndex)) return;
+
+    const distance = getDistance(playerCell, ai);
+    const playerSize = getSize(playerCell.score);
+    const aiSize = getSize(ai.score);
+
+    if (distance >= playerSize + aiSize) return;
+
+    if (playerSize > aiSize * COLLISION_THRESHOLD) {
+        const currentGain = context.scoreGains.get(playerCellIndex) || 0;
+        context.scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
+        context.aiIndicesToRemove.add(aiIndex);
+    } else if (aiSize > playerSize * COLLISION_THRESHOLD) {
+        ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
+        context.playerCellsToRemove.add(playerCellIndex);
+    }
+}
+
+function removeIndicesInReverse(array, indices) {
+    [...indices].sort((a, b) => b - a).forEach(index => {
+        array.splice(index, 1);
+    });
+}
+
 export function handlePlayerAICollisions() {
-    // Track changes to make after all collision checks
-    const aiIndicesToRemove = new Set();
-    const playerCellsToRemove = new Set();
-    const scoreGains = new Map(); // Map of cell index to score gain
+    const context = {
+        aiIndicesToRemove: new Set(),
+        playerCellsToRemove: new Set(),
+        scoreGains: new Map()
+    };
 
-    // Check each player cell against each AI
     gameState.playerCells.forEach((playerCell, playerCellIndex) => {
-        if (!playerCell || typeof playerCell.score !== 'number') return;
-        
+        if (!isValidEntity(playerCell)) return;
         gameState.aiPlayers.forEach((ai, aiIndex) => {
-            if (!ai || typeof ai.score !== 'number') return;
-            if (aiIndicesToRemove.has(aiIndex)) return;
-            if (playerCellsToRemove.has(playerCellIndex)) return;
-
-            const distance = getDistance(playerCell, ai);
-            const playerSize = getSize(playerCell.score);
-            const aiSize = getSize(ai.score);
-            const minDistance = playerSize + aiSize;
-
-            if (distance < minDistance) {
-                // Player cell is bigger
-                if (playerSize > aiSize * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(playerCellIndex) || 0;
-                    scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
-                    aiIndicesToRemove.add(aiIndex);
-                }
-                // AI is bigger
-                else if (aiSize > playerSize * COLLISION_THRESHOLD) {
-                    // Prevent score overflow
-                    ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
-                    playerCellsToRemove.add(playerCellIndex);
-                }
-            }
+            checkPlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, context);
         });
     });
 
-    // Apply all changes after collision checks
-    // Remove consumed AIs (in reverse order)
-    [...aiIndicesToRemove].sort((a, b) => b - a).forEach(index => {
-        gameState.aiPlayers.splice(index, 1);
-    });
+    removeIndicesInReverse(gameState.aiPlayers, context.aiIndicesToRemove);
 
-    // Apply score gains to surviving player cells
-    scoreGains.forEach((gain, cellIndex) => {
-        if (!playerCellsToRemove.has(cellIndex) && gameState.playerCells[cellIndex]) {
-            // Prevent score overflow
+    context.scoreGains.forEach((gain, cellIndex) => {
+        if (!context.playerCellsToRemove.has(cellIndex) && gameState.playerCells[cellIndex]) {
             gameState.playerCells[cellIndex].score = Math.min(Number.MAX_SAFE_INTEGER, gameState.playerCells[cellIndex].score + gain);
         }
     });
 
-    // Remove consumed player cells (in reverse order)
-    [...playerCellsToRemove].sort((a, b) => b - a).forEach(index => {
-        gameState.playerCells.splice(index, 1);
-    });
+    removeIndicesInReverse(gameState.playerCells, context.playerCellsToRemove);
 
-    // Respawn player if all cells are gone
     if (gameState.playerCells.length === 0) {
         const safePos = findSafeSpawnLocation(gameState);
         gameState.playerCells.push({
@@ -112,54 +93,52 @@ export function handlePlayerAICollisions() {
     }
 }
 
+function resolveAICollision(ai1, ai2, i, j, aisToRemove, scoreGains) {
+    const ai1Size = getSize(ai1.score);
+    const ai2Size = getSize(ai2.score);
+    const distance = getDistance(ai1, ai2);
+
+    if (distance >= ai1Size + ai2Size) return false;
+
+    if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
+        const currentGain = scoreGains.get(i) || 0;
+        scoreGains.set(i, currentGain + ai2.score + 100);
+        aisToRemove.add(j);
+    } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
+        const currentGain = scoreGains.get(j) || 0;
+        scoreGains.set(j, currentGain + ai1.score + 100);
+        aisToRemove.add(i);
+        return true;
+    }
+    return false;
+}
+
 export function handleAIAICollisions() {
     const aisToRemove = new Set();
-    const scoreGains = new Map(); // Map of AI index to score gain
+    const scoreGains = new Map();
 
     for (let i = 0; i < gameState.aiPlayers.length; i++) {
         if (aisToRemove.has(i)) continue;
-        
         const ai1 = gameState.aiPlayers[i];
-        if (!ai1 || typeof ai1.score !== 'number') continue;
+        if (!isValidEntity(ai1)) continue;
 
         for (let j = i + 1; j < gameState.aiPlayers.length; j++) {
             if (aisToRemove.has(j)) continue;
-            
             const ai2 = gameState.aiPlayers[j];
-            if (!ai2 || typeof ai2.score !== 'number') continue;
-            
-            const distance = getDistance(ai1, ai2);
-            const ai1Size = getSize(ai1.score);
-            const ai2Size = getSize(ai2.score);
-            const minDistance = ai1Size + ai2Size;
+            if (!isValidEntity(ai2)) continue;
 
-            if (distance < minDistance) {
-                if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(i) || 0;
-                    scoreGains.set(i, currentGain + ai2.score + 100);
-                    aisToRemove.add(j);
-                } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(j) || 0;
-                    scoreGains.set(j, currentGain + ai1.score + 100);
-                    aisToRemove.add(i);
-                    break;
-                }
-            }
+            const consumed = resolveAICollision(ai1, ai2, i, j, aisToRemove, scoreGains);
+            if (consumed) break;
         }
     }
 
-    // Apply score gains to surviving AIs
     scoreGains.forEach((gain, aiIndex) => {
         if (!aisToRemove.has(aiIndex) && gameState.aiPlayers[aiIndex]) {
-            // Prevent score overflow
             gameState.aiPlayers[aiIndex].score = Math.min(Number.MAX_SAFE_INTEGER, gameState.aiPlayers[aiIndex].score + gain);
         }
     });
 
-    // Remove consumed AIs (in reverse order)
-    [...aisToRemove].sort((a, b) => b - a).forEach(index => {
-        gameState.aiPlayers.splice(index, 1);
-    });
+    removeIndicesInReverse(gameState.aiPlayers, aisToRemove);
 }
 
 export function respawnEntities() {
