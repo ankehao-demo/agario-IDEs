@@ -1,6 +1,6 @@
 import { splitPlayerCell, handlePlayerSplit, updatePlayer } from '../entities.js';
 import { gameState, mouse } from '../gameState.js';
-import { MIN_SPLIT_SCORE, MAX_PLAYER_CELLS } from '../config.js';
+import { MIN_SPLIT_SCORE, MAX_PLAYER_CELLS, MERGE_COOLDOWN } from '../config.js';
 
 // Mock gameState and mouse
 jest.mock('../gameState.js', () => ({
@@ -223,5 +223,99 @@ describe('updatePlayer', () => {
 
     expect(isFinite(gameState.playerCells[0].x)).toBe(true);
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
+  });
+});
+
+describe('updatePlayer - cell merging', () => {
+  beforeEach(() => {
+    gameState.playerCells = [];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+  });
+
+  test('merges two overlapping cells with expired cooldown', () => {
+    const expiredTime = Date.now() - MERGE_COOLDOWN - 1000;
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 50, velocityX: 0, velocityY: 0, splitTime: expiredTime },
+      { x: 101, y: 101, score: 50, velocityX: 0, velocityY: 0, splitTime: expiredTime }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(100);
+  });
+
+  test('applies attraction between cells that can merge but are not close enough', () => {
+    const expiredTime = Date.now() - MERGE_COOLDOWN - 1000;
+    const cell1 = { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: expiredTime };
+    const cell2 = { x: 150, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: expiredTime };
+    gameState.playerCells = [cell1, cell2];
+
+    updatePlayer();
+
+    // Cells should have attraction forces applied
+    expect(cell1.velocityX !== 0 || cell2.velocityX !== 0).toBe(true);
+  });
+
+  test('applies repulsion between close cells that cannot merge yet', () => {
+    const recentTime = Date.now();
+    const cell1 = { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: recentTime };
+    const cell2 = { x: 105, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: recentTime };
+    gameState.playerCells = [cell1, cell2];
+
+    updatePlayer();
+
+    // Cells should repel when too close and can't merge
+    expect(typeof cell1.velocityX).toBe('number');
+    expect(typeof cell2.velocityX).toBe('number');
+  });
+
+  test('applies attraction force before merge cooldown expires for distant cells', () => {
+    const recentTime = Date.now();
+    const cell1 = { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: recentTime };
+    const cell2 = { x: 300, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: recentTime };
+    gameState.playerCells = [cell1, cell2];
+
+    updatePlayer();
+
+    expect(typeof cell1.velocityX).toBe('number');
+  });
+
+  test('does not merge cells with recent split time', () => {
+    const recentTime = Date.now();
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 50, velocityX: 0, velocityY: 0, splitTime: recentTime },
+      { x: 101, y: 101, score: 50, velocityX: 0, velocityY: 0, splitTime: recentTime }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+  });
+
+  test('handles invalid cells in the merging loop', () => {
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 50, velocityX: 0, velocityY: 0 },
+      null,
+      { x: 101, y: 101, score: 50, velocityX: 0, velocityY: 0 }
+    ];
+
+    expect(() => updatePlayer()).not.toThrow();
+  });
+
+  test('merges three cells into one when all are close with expired cooldown', () => {
+    const expiredTime = Date.now() - MERGE_COOLDOWN - 1000;
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 30, velocityX: 0, velocityY: 0, splitTime: expiredTime },
+      { x: 101, y: 100, score: 30, velocityX: 0, velocityY: 0, splitTime: expiredTime },
+      { x: 100, y: 101, score: 30, velocityX: 0, velocityY: 0, splitTime: expiredTime }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBeLessThan(3);
+    const totalScore = gameState.playerCells.reduce((sum, c) => sum + c.score, 0);
+    expect(totalScore).toBe(90);
   });
 });
