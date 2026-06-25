@@ -43,63 +43,43 @@ export function handleFoodCollisions() {
     }
 }
 
-export function handlePlayerAICollisions() {
-    // Track changes to make after all collision checks
-    const aiIndicesToRemove = new Set();
-    const playerCellsToRemove = new Set();
-    const scoreGains = new Map(); // Map of cell index to score gain
+function checkPlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, results) {
+    if (results.aiIndicesToRemove.has(aiIndex)) return;
+    if (results.playerCellsToRemove.has(playerCellIndex)) return;
 
-    // Check each player cell against each AI
-    gameState.playerCells.forEach((playerCell, playerCellIndex) => {
-        if (!playerCell || typeof playerCell.score !== 'number') return;
-        
-        gameState.aiPlayers.forEach((ai, aiIndex) => {
-            if (!ai || typeof ai.score !== 'number') return;
-            if (aiIndicesToRemove.has(aiIndex)) return;
-            if (playerCellsToRemove.has(playerCellIndex)) return;
+    const distance = getDistance(playerCell, ai);
+    const playerSize = getSize(playerCell.score);
+    const aiSize = getSize(ai.score);
 
-            const distance = getDistance(playerCell, ai);
-            const playerSize = getSize(playerCell.score);
-            const aiSize = getSize(ai.score);
-            const minDistance = playerSize + aiSize;
+    if (distance >= playerSize + aiSize) return;
 
-            if (distance < minDistance) {
-                // Player cell is bigger
-                if (playerSize > aiSize * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(playerCellIndex) || 0;
-                    scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
-                    aiIndicesToRemove.add(aiIndex);
-                }
-                // AI is bigger
-                else if (aiSize > playerSize * COLLISION_THRESHOLD) {
-                    // Prevent score overflow
-                    ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
-                    playerCellsToRemove.add(playerCellIndex);
-                }
-            }
-        });
-    });
+    if (playerSize > aiSize * COLLISION_THRESHOLD) {
+        const currentGain = results.scoreGains.get(playerCellIndex) || 0;
+        results.scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
+        results.aiIndicesToRemove.add(aiIndex);
+    } else if (aiSize > playerSize * COLLISION_THRESHOLD) {
+        ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
+        results.playerCellsToRemove.add(playerCellIndex);
+    }
+}
 
-    // Apply all changes after collision checks
-    // Remove consumed AIs (in reverse order)
-    [...aiIndicesToRemove].sort((a, b) => b - a).forEach(index => {
+function applyCollisionResults(results) {
+    [...results.aiIndicesToRemove].sort((a, b) => b - a).forEach(index => {
         gameState.aiPlayers.splice(index, 1);
     });
 
-    // Apply score gains to surviving player cells
-    scoreGains.forEach((gain, cellIndex) => {
-        if (!playerCellsToRemove.has(cellIndex) && gameState.playerCells[cellIndex]) {
-            // Prevent score overflow
+    results.scoreGains.forEach((gain, cellIndex) => {
+        if (!results.playerCellsToRemove.has(cellIndex) && gameState.playerCells[cellIndex]) {
             gameState.playerCells[cellIndex].score = Math.min(Number.MAX_SAFE_INTEGER, gameState.playerCells[cellIndex].score + gain);
         }
     });
 
-    // Remove consumed player cells (in reverse order)
-    [...playerCellsToRemove].sort((a, b) => b - a).forEach(index => {
+    [...results.playerCellsToRemove].sort((a, b) => b - a).forEach(index => {
         gameState.playerCells.splice(index, 1);
     });
+}
 
-    // Respawn player if all cells are gone
+function respawnPlayerIfNeeded() {
     if (gameState.playerCells.length === 0) {
         const safePos = findSafeSpawnLocation(gameState);
         gameState.playerCells.push({
@@ -110,6 +90,26 @@ export function handlePlayerAICollisions() {
             velocityY: 0
         });
     }
+}
+
+export function handlePlayerAICollisions() {
+    const results = {
+        aiIndicesToRemove: new Set(),
+        playerCellsToRemove: new Set(),
+        scoreGains: new Map()
+    };
+
+    gameState.playerCells.forEach((playerCell, playerCellIndex) => {
+        if (!playerCell || typeof playerCell.score !== 'number') return;
+
+        gameState.aiPlayers.forEach((ai, aiIndex) => {
+            if (!ai || typeof ai.score !== 'number') return;
+            checkPlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, results);
+        });
+    });
+
+    applyCollisionResults(results);
+    respawnPlayerIfNeeded();
 }
 
 export function handleAIAICollisions() {
