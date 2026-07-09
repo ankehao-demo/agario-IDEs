@@ -97,6 +97,21 @@ describe('handlePlayerAICollisions', () => {
     expect(gameState.aiPlayers[0].score).toBe(600);  // 400 + 100 + 100 bonus
   });
 
+  test('no consumption when player and AI are far apart', () => {
+    const playerCell = { x: 0, y: 0, score: 400 };
+    const ai = { x: 1000, y: 1000, score: 100 };
+
+    gameState.playerCells = [playerCell];
+    gameState.aiPlayers = [ai];
+
+    handlePlayerAICollisions();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.aiPlayers.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(400);
+    expect(gameState.aiPlayers[0].score).toBe(100);
+  });
+
   // Security: Input validation and edge cases
   test('handles empty arrays safely', () => {
     gameState.playerCells = [];
