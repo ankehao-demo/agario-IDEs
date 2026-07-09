@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,45 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  test('returns an in-bounds position when no entities exist', () => {
+    const gameState = { aiPlayers: [], playerCells: [] };
+    const pos = findSafeSpawnLocation(gameState);
+
+    expect(typeof pos.x).toBe('number');
+    expect(typeof pos.y).toBe('number');
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
+  });
+
+  test('considers both AI players and player cells when checking safety', () => {
+    const gameState = {
+      aiPlayers: [{ x: 500, y: 500, score: 100 }],
+      playerCells: [{ x: 1500, y: 1500, score: 100 }]
+    };
+    const pos = findSafeSpawnLocation(gameState, 50);
+
+    expect(isFinite(pos.x)).toBe(true);
+    expect(isFinite(pos.y)).toBe(true);
+  });
+
+  test('falls back to the furthest position when no safe spot is found', () => {
+    const gameState = {
+      aiPlayers: [{ x: 1000, y: 1000, score: 100 }],
+      playerCells: [{ x: 0, y: 0, score: 100 }]
+    };
+    // An infinite required distance makes every candidate "unsafe",
+    // forcing the fallback furthest-position search.
+    const pos = findSafeSpawnLocation(gameState, Infinity);
+
+    expect(isFinite(pos.x)).toBe(true);
+    expect(isFinite(pos.y)).toBe(true);
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
   });
 });
