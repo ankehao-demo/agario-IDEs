@@ -43,11 +43,36 @@ export function handleFoodCollisions() {
     }
 }
 
+function resolvePlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, tracking) {
+    const { aiIndicesToRemove, playerCellsToRemove, scoreGains } = tracking;
+
+    const distance = getDistance(playerCell, ai);
+    const playerSize = getSize(playerCell.score);
+    const aiSize = getSize(ai.score);
+    const minDistance = playerSize + aiSize;
+
+    if (distance >= minDistance) return;
+
+    // Player cell is bigger
+    if (playerSize > aiSize * COLLISION_THRESHOLD) {
+        const currentGain = scoreGains.get(playerCellIndex) || 0;
+        scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
+        aiIndicesToRemove.add(aiIndex);
+    }
+    // AI is bigger
+    else if (aiSize > playerSize * COLLISION_THRESHOLD) {
+        // Prevent score overflow
+        ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
+        playerCellsToRemove.add(playerCellIndex);
+    }
+}
+
 export function handlePlayerAICollisions() {
     // Track changes to make after all collision checks
     const aiIndicesToRemove = new Set();
     const playerCellsToRemove = new Set();
     const scoreGains = new Map(); // Map of cell index to score gain
+    const tracking = { aiIndicesToRemove, playerCellsToRemove, scoreGains };
 
     // Check each player cell against each AI
     gameState.playerCells.forEach((playerCell, playerCellIndex) => {
@@ -58,25 +83,7 @@ export function handlePlayerAICollisions() {
             if (aiIndicesToRemove.has(aiIndex)) return;
             if (playerCellsToRemove.has(playerCellIndex)) return;
 
-            const distance = getDistance(playerCell, ai);
-            const playerSize = getSize(playerCell.score);
-            const aiSize = getSize(ai.score);
-            const minDistance = playerSize + aiSize;
-
-            if (distance < minDistance) {
-                // Player cell is bigger
-                if (playerSize > aiSize * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(playerCellIndex) || 0;
-                    scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
-                    aiIndicesToRemove.add(aiIndex);
-                }
-                // AI is bigger
-                else if (aiSize > playerSize * COLLISION_THRESHOLD) {
-                    // Prevent score overflow
-                    ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
-                    playerCellsToRemove.add(playerCellIndex);
-                }
-            }
+            resolvePlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, tracking);
         });
     });
 
