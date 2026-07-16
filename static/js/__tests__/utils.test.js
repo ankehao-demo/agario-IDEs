@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,47 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  test('returns an in-bounds position when there are no entities', () => {
+    const gameState = { aiPlayers: [], playerCells: [] };
+
+    const pos = findSafeSpawnLocation(gameState);
+
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
+  });
+
+  test('returns a position clear of existing entities', () => {
+    const gameState = {
+      aiPlayers: [{ x: 500, y: 500, score: 100 }],
+      playerCells: [{ x: 1500, y: 1500, score: 100 }]
+    };
+
+    const pos = findSafeSpawnLocation(gameState, 50);
+
+    const clearOfAll = [...gameState.aiPlayers, ...gameState.playerCells].every(entity => {
+      return getDistance(pos, entity) >= getSize(entity.score) + 50;
+    });
+    expect(clearOfAll).toBe(true);
+  });
+
+  test('falls back to the furthest sampled position when no safe spot exists', () => {
+    // A huge minDistance makes every position "unsafe", forcing the fallback path.
+    const gameState = {
+      aiPlayers: [{ x: 1000, y: 1000, score: 100 }],
+      playerCells: [{ x: 1000, y: 1000, score: 100 }]
+    };
+
+    const pos = findSafeSpawnLocation(gameState, 100000);
+
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
   });
 });
