@@ -225,3 +225,126 @@ describe('updatePlayer', () => {
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
   });
 });
+
+// Cell merging runs inside updatePlayer(). Centering the mouse makes the
+// movement step a no-op so these tests isolate the merging behavior.
+describe('updatePlayer cell merging', () => {
+  beforeEach(() => {
+    gameState.playerCells = [];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+  });
+
+  test('merges two overlapping cells into one with combined score', () => {
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(200);
+    expect(gameState.playerCells[0].splitTime).toBe(0);
+  });
+
+  test('merges a group of three overlapping cells into one', () => {
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 50, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 100, y: 100, score: 50, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 100, y: 100, score: 50, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(150);
+  });
+
+  test('applies attraction force to nearby mergeable cells without merging', () => {
+    // distance 50 is >= minDistance*0.5 (30) so no merge, but < minMergeDistance (120)
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 150, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    // Cells are pulled toward each other
+    expect(gameState.playerCells[0].velocityX).toBeGreaterThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeLessThan(0);
+  });
+
+  test('applies repulsion force when cells overlap but cannot merge yet', () => {
+    const now = Date.now();
+    // distance 40 < minDistance (60); recent splitTime blocks merging
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now },
+      { x: 140, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    // Cells are pushed apart
+    expect(gameState.playerCells[0].velocityX).toBeLessThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeGreaterThan(0);
+  });
+
+  test('applies attraction force to distant cells', () => {
+    // distance 300 > minMergeDistance (120): long-range attraction
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 400, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(gameState.playerCells[0].velocityX).toBeGreaterThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeLessThan(0);
+  });
+
+  test('uses the pre-cooldown start force for distant cells that cannot merge', () => {
+    const now = Date.now();
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now },
+      { x: 200, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(gameState.playerCells[0].velocityX).toBeGreaterThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeLessThan(0);
+  });
+
+  test('merges multiple separate groups of cells independently', () => {
+    // Two overlapping clusters far apart, plus one lone cell between them.
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 1000, y: 1000, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 500, y: 500, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 500, y: 500, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    // Each cluster merges to one cell; the lone cell survives -> 3 total.
+    expect(gameState.playerCells.length).toBe(3);
+    const mergedScores = gameState.playerCells.map(c => c.score).sort((a, b) => a - b);
+    expect(mergedScores).toEqual([100, 200, 200]);
+  });
+
+  test('skips malformed cells during merging', () => {
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      null,
+      { x: 200 }
+    ];
+
+    expect(() => updatePlayer()).not.toThrow();
+  });
+});
