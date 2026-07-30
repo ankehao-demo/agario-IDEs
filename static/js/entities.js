@@ -33,6 +33,102 @@ function getUnusedAIName() {
     return AI_NAMES.find(name => !usedNames.has(name)) || AI_NAMES[0];
 }
 
+function isValidCell(cell) {
+    return Boolean(cell) && typeof cell.score === 'number';
+}
+
+// Pushes cell1 towards cell2 (and cell2 towards cell1) by the given factor.
+// A negative factor pushes the cells apart.
+function applyMutualForce(cell1, cell2, factor) {
+    const dx = cell2.x - cell1.x;
+    const dy = cell2.y - cell1.y;
+
+    cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
+    cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
+    cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
+    cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
+}
+
+// Applies attraction/repulsion between a pair of cells and reports whether
+// they are close enough to be merged.
+function resolveCellPair(cell1, cell2, now) {
+    const distance = getDistance(cell1, cell2);
+    const cell1Size = getSize(cell1.score);
+    const cell2Size = getSize(cell2.score);
+    const minMergeDistance = (cell1Size + cell2Size) * MERGE_DISTANCE;
+    const minDistance = cell1Size + cell2Size;  // Minimum distance before repulsion
+
+    const canMerge = now - (cell1.splitTime || 0) > MERGE_COOLDOWN &&
+        now - (cell2.splitTime || 0) > MERGE_COOLDOWN;
+
+    if (distance < minMergeDistance && canMerge) {
+        if (distance < minDistance * 0.5) {
+            return true;
+        }
+        // Strong attraction force when close to merging
+        applyMutualForce(cell1, cell2, MERGE_FORCE / Math.max(1, distance));
+        return false;
+    }
+
+    if (distance < minDistance) {
+        const repulsionStrength = 0.3;  // Adjust this to control repulsion strength
+        const repulsionFactor = (minDistance - distance) / minDistance * repulsionStrength;
+        applyMutualForce(cell1, cell2, -repulsionFactor);
+    } else if (distance > minDistance) {
+        const force = canMerge ? MERGE_FORCE : MERGE_START_FORCE;
+        applyMutualForce(cell1, cell2, force / Math.max(1, distance));
+    }
+
+    return false;
+}
+
+// Splits descending indices into runs of consecutive values.
+function groupConsecutiveIndices(indices) {
+    const groups = [];
+    let currentGroup = [indices[0]];
+
+    for (const index of indices.slice(1)) {
+        if (currentGroup[currentGroup.length - 1] - index === 1) {
+            currentGroup.push(index);
+        } else {
+            groups.push(currentGroup);
+            currentGroup = [index];
+        }
+    }
+    groups.push(currentGroup);
+
+    return groups;
+}
+
+function mergeCellGroup(group) {
+    const cells = group.map(index => gameState.playerCells[index]);
+
+    // Calculate total score and weighted position
+    const totalScore = cells.reduce((sum, cell) => sum + cell.score, 0);
+    const weightedX = cells.reduce((sum, cell) => sum + cell.x * cell.score, 0) / totalScore;
+    const weightedY = cells.reduce((sum, cell) => sum + cell.y * cell.score, 0) / totalScore;
+
+    // Calculate average velocity weighted by mass
+    const avgVelocityX = cells.reduce((sum, cell) => sum + cell.velocityX * cell.score, 0) / totalScore;
+    const avgVelocityY = cells.reduce((sum, cell) => sum + cell.velocityY * cell.score, 0) / totalScore;
+
+    // Remove old cells (in reverse order to maintain correct indices)
+    const descendingIndices = [...group].sort((a, b) => b - a);
+    descendingIndices.forEach(index => {
+        gameState.playerCells.splice(index, 1);
+    });
+
+    // Add merged cell with combined score
+    gameState.playerCells.push({
+        x: weightedX,
+        y: weightedY,
+        score: totalScore,  // This is the sum of all merged cell scores
+        velocityX: avgVelocityX,
+        velocityY: avgVelocityY,
+        splitTime: 0  // Reset split time for merged cell
+    });
+}
+
 function updateCellMerging() {
     const now = Date.now();
     const cellsToMerge = [];
@@ -40,130 +136,25 @@ function updateCellMerging() {
     // First pass: calculate merging forces and identify mergeable cells
     for (let i = 0; i < gameState.playerCells.length; i++) {
         const cell1 = gameState.playerCells[i];
-        if (!cell1 || typeof cell1.score !== 'number') continue;
-        
-        // Skip if cell is already marked for merging
-        if (cellsToMerge.includes(i)) continue;
+        // Skip invalid cells and cells already marked for merging
+        if (!isValidCell(cell1) || cellsToMerge.includes(i)) continue;
 
         for (let j = i + 1; j < gameState.playerCells.length; j++) {
             const cell2 = gameState.playerCells[j];
-            if (!cell2 || typeof cell2.score !== 'number') continue;
-            
-            // Skip if cell is already marked for merging
-            if (cellsToMerge.includes(j)) continue;
+            if (!isValidCell(cell2) || cellsToMerge.includes(j)) continue;
 
-            const distance = getDistance(cell1, cell2);
-            const cell1Size = getSize(cell1.score);
-            const cell2Size = getSize(cell2.score);
-            const minMergeDistance = (cell1Size + cell2Size) * MERGE_DISTANCE;
-            const minDistance = cell1Size + cell2Size;  // Minimum distance before repulsion
-
-            // Calculate time since split
-            const timeSinceSplit1 = now - (cell1.splitTime || 0);
-            const timeSinceSplit2 = now - (cell2.splitTime || 0);
-            const canMerge = timeSinceSplit1 > MERGE_COOLDOWN && timeSinceSplit2 > MERGE_COOLDOWN;
-
-            if (distance < minMergeDistance && canMerge) {
-                // Mark cells for merging only if they're very close
-                if (distance < minDistance * 0.5) {
-                    cellsToMerge.push(i, j);
-                } else {
-                    // Strong attraction force when close to merging
-                    const dx = cell2.x - cell1.x;
-                    const dy = cell2.y - cell1.y;
-                    const force = MERGE_FORCE;
-                    const factor = force / Math.max(1, distance);
-
-                    cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
-                    cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
-                    cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
-                    cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
-                }
-            } else {
-                // Calculate repulsion when too close
-                if (distance < minDistance) {
-                    const repulsionStrength = 0.3;  // Adjust this to control repulsion strength
-                    const repulsionFactor = (minDistance - distance) / minDistance * repulsionStrength;
-                    const dx = cell2.x - cell1.x;
-                    const dy = cell2.y - cell1.y;
-                    
-                    // Apply repulsion
-                    cell1.velocityX = (cell1.velocityX || 0) - dx * repulsionFactor;
-                    cell1.velocityY = (cell1.velocityY || 0) - dy * repulsionFactor;
-                    cell2.velocityX = (cell2.velocityX || 0) + dx * repulsionFactor;
-                    cell2.velocityY = (cell2.velocityY || 0) + dy * repulsionFactor;
-                }
-                
-                // Apply attraction force if not too close
-                if (distance > minDistance) {
-                    const dx = cell2.x - cell1.x;
-                    const dy = cell2.y - cell1.y;
-                    const force = canMerge ? MERGE_FORCE : MERGE_START_FORCE;
-                    const factor = force / Math.max(1, distance);
-
-                    cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
-                    cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
-                    cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
-                    cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
-                }
+            if (resolveCellPair(cell1, cell2, now)) {
+                cellsToMerge.push(i, j);
             }
         }
     }
 
-    // Second pass: merge cells
-    if (cellsToMerge.length > 0) {
-        // Sort indices in descending order to remove from end first
-        cellsToMerge.sort((a, b) => b - a);
-        
-        // Get unique indices
-        const uniqueIndices = [...new Set(cellsToMerge)];
-        
-        // Group cells to merge
-        const groups = [];
-        let currentGroup = [uniqueIndices[0]];
-        
-        for (let i = 1; i < uniqueIndices.length; i++) {
-            const current = uniqueIndices[i];
-            const prev = currentGroup[currentGroup.length - 1];
-            
-            if (prev - current === 1) {
-                currentGroup.push(current);
-            } else {
-                groups.push(currentGroup);
-                currentGroup = [current];
-            }
-        }
-        groups.push(currentGroup);
+    if (cellsToMerge.length === 0) return;
 
-        // Merge each group
-        groups.forEach(group => {
-            const cells = group.map(index => gameState.playerCells[index]);
-            
-            // Calculate total score and weighted position
-            const totalScore = cells.reduce((sum, cell) => sum + cell.score, 0);
-            const weightedX = cells.reduce((sum, cell) => sum + cell.x * cell.score, 0) / totalScore;
-            const weightedY = cells.reduce((sum, cell) => sum + cell.y * cell.score, 0) / totalScore;
-            
-            // Calculate average velocity weighted by mass
-            const avgVelocityX = cells.reduce((sum, cell) => sum + cell.velocityX * cell.score, 0) / totalScore;
-            const avgVelocityY = cells.reduce((sum, cell) => sum + cell.velocityY * cell.score, 0) / totalScore;
-
-            // Remove old cells (in reverse order to maintain correct indices)
-            group.sort((a, b) => b - a).forEach(index => {
-                gameState.playerCells.splice(index, 1);
-            });
-
-            // Add merged cell with combined score
-            gameState.playerCells.push({
-                x: weightedX,
-                y: weightedY,
-                score: totalScore,  // This is the sum of all merged cell scores
-                velocityX: avgVelocityX,
-                velocityY: avgVelocityY,
-                splitTime: 0  // Reset split time for merged cell
-            });
-        });
-    }
+    // Second pass: merge cells, highest index first so splices stay valid
+    cellsToMerge.sort((a, b) => b - a);
+    const uniqueIndices = [...new Set(cellsToMerge)];
+    groupConsecutiveIndices(uniqueIndices).forEach(mergeCellGroup);
 }
 
 export function updatePlayer() {
