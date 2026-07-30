@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,44 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+describe('findSafeSpawnLocation', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('returns a position inside the world', () => {
+    const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [] });
+
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
+  });
+
+  test('keeps the required distance from existing entities', () => {
+    const gameState = {
+      aiPlayers: [{ x: 0, y: 0, score: 100 }],
+      playerCells: [{ x: WORLD_SIZE, y: WORLD_SIZE, score: 100 }]
+    };
+
+    const pos = findSafeSpawnLocation(gameState, 100);
+
+    [...gameState.aiPlayers, ...gameState.playerCells].forEach(entity => {
+      expect(getDistance(pos, entity)).toBeGreaterThanOrEqual(getSize(entity.score) + 100);
+    });
+  });
+
+  test('falls back to the furthest sampled position when nowhere is safe', () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    const gameState = {
+      aiPlayers: [{ x: 0, y: 0, score: WORLD_SIZE * WORLD_SIZE }],
+      playerCells: []
+    };
+
+    const pos = findSafeSpawnLocation(gameState, 100);
+
+    expect(pos).toEqual({ x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 });
   });
 });
