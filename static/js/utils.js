@@ -27,54 +27,31 @@ export function calculateCenterOfMass(cells) {
     };
 }
 
-export function findSafeSpawnLocation(gameState, minDistance = 100) {
-    const maxAttempts = 50;
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
-        const pos = getRandomPosition();
-        let isSafe = true;
+function getOccupants(gameState) {
+    return [...gameState.aiPlayers, ...gameState.playerCells];
+}
 
-        // Check distance from AI players
-        for (const ai of gameState.aiPlayers) {
-            const distance = getDistance(pos, ai);
-            const safeDistance = getSize(ai.score) + minDistance;
-            if (distance < safeDistance) {
-                isSafe = false;
-                break;
-            }
-        }
+function isSafePosition(pos, gameState, minDistance) {
+    return getOccupants(gameState).every(entity =>
+        getDistance(pos, entity) >= getSize(entity.score) + minDistance
+    );
+}
 
-        // Check distance from player cells
-        for (const cell of gameState.playerCells) {
-            const distance = getDistance(pos, cell);
-            const safeDistance = getSize(cell.score) + minDistance;
-            if (distance < safeDistance) {
-                isSafe = false;
-                break;
-            }
-        }
+function distanceToNearestOccupant(pos, gameState) {
+    return getOccupants(gameState).reduce(
+        (nearest, entity) => Math.min(nearest, getDistance(pos, entity)),
+        Infinity
+    );
+}
 
-        if (isSafe) {
-            return pos;
-        }
-
-        attempts++;
-    }
-
-    // If no safe spot found after max attempts, find the spot furthest from all players
+// Samples random positions and returns the one furthest from every occupant.
+function findFurthestPosition(gameState, samples = 20) {
     let bestPos = getRandomPosition();
     let maxMinDistance = 0;
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < samples; i++) {
         const pos = getRandomPosition();
-        let minDistanceToPlayer = Infinity;
-
-        // Check distance to all players and cells
-        [...gameState.aiPlayers, ...gameState.playerCells].forEach(entity => {
-            const distance = getDistance(pos, entity);
-            minDistanceToPlayer = Math.min(minDistanceToPlayer, distance);
-        });
+        const minDistanceToPlayer = distanceToNearestOccupant(pos, gameState);
 
         if (minDistanceToPlayer > maxMinDistance) {
             maxMinDistance = minDistanceToPlayer;
@@ -83,4 +60,18 @@ export function findSafeSpawnLocation(gameState, minDistance = 100) {
     }
 
     return bestPos;
+}
+
+export function findSafeSpawnLocation(gameState, minDistance = 100) {
+    const maxAttempts = 50;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const pos = getRandomPosition();
+        if (isSafePosition(pos, gameState, minDistance)) {
+            return pos;
+        }
+    }
+
+    // If no safe spot found after max attempts, find the spot furthest from all players
+    return findFurthestPosition(gameState);
 }
