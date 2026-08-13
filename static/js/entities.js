@@ -156,7 +156,8 @@ function updateCellMerging() {
     if (cellsToMerge.length === 0) return;
 
     // Sort indices in descending order to remove from end first
-    const uniqueIndices = [...new Set(cellsToMerge.sort((a, b) => b - a))];
+    const descendingIndices = [...cellsToMerge].sort((a, b) => b - a);
+    const uniqueIndices = [...new Set(descendingIndices)];
 
     groupConsecutiveIndices(uniqueIndices).forEach(mergeCellGroup);
 }
