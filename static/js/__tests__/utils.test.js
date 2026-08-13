@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,45 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  const isInsideWorld = pos =>
+    pos.x >= 0 && pos.x <= WORLD_SIZE && pos.y >= 0 && pos.y <= WORLD_SIZE;
+
+  test('returns a position inside the world for an empty game state', () => {
+    const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [] });
+
+    expect(isInsideWorld(pos)).toBe(true);
+  });
+
+  test('keeps the required distance from existing entities', () => {
+    const ai = { x: 100, y: 100, score: 100 };
+    const playerCell = { x: 1900, y: 1900, score: 100 };
+
+    const pos = findSafeSpawnLocation({ aiPlayers: [ai], playerCells: [playerCell] });
+
+    expect(isInsideWorld(pos)).toBe(true);
+    expect(getDistance(pos, ai)).toBeGreaterThanOrEqual(getSize(ai.score) + 100);
+    expect(getDistance(pos, playerCell)).toBeGreaterThanOrEqual(getSize(playerCell.score) + 100);
+  });
+
+  test('falls back to the furthest position when no safe spot exists', () => {
+    // A cell large enough to cover the whole world makes every position unsafe
+    const giant = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, score: 1e8 };
+
+    const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [giant] });
+
+    expect(isInsideWorld(pos)).toBe(true);
+    expect(getDistance(pos, giant)).toBeGreaterThan(0);
+  });
+
+  test('respects a custom minimum distance', () => {
+    const ai = { x: 0, y: 0, score: 100 };
+
+    const pos = findSafeSpawnLocation({ aiPlayers: [ai], playerCells: [] }, 500);
+
+    expect(getDistance(pos, ai)).toBeGreaterThanOrEqual(getSize(ai.score) + 500);
   });
 });

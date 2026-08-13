@@ -1,6 +1,6 @@
 import { splitPlayerCell, handlePlayerSplit, updatePlayer } from '../entities.js';
 import { gameState, mouse } from '../gameState.js';
-import { MIN_SPLIT_SCORE, MAX_PLAYER_CELLS } from '../config.js';
+import { MIN_SPLIT_SCORE, MAX_PLAYER_CELLS, MERGE_COOLDOWN } from '../config.js';
 
 // Mock gameState and mouse
 jest.mock('../gameState.js', () => ({
@@ -223,5 +223,80 @@ describe('updatePlayer', () => {
 
     expect(isFinite(gameState.playerCells[0].x)).toBe(true);
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
+  });
+});
+
+describe('cell merging via updatePlayer', () => {
+  const makeCell = (x, y, score, splitTime = 0) => ({
+    x,
+    y,
+    score,
+    velocityX: 0,
+    velocityY: 0,
+    splitTime
+  });
+
+  beforeEach(() => {
+    gameState.playerCells = [];
+    // Point the mouse at the screen centre so cells are not moved by input
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+  });
+
+  test('merges overlapping cells past the merge cooldown', () => {
+    gameState.playerCells = [makeCell(100, 100, 100), makeCell(110, 100, 100)];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(200);
+    expect(gameState.playerCells[0].x).toBeCloseTo(105);
+    expect(gameState.playerCells[0].splitTime).toBe(0);
+  });
+
+  test('merges each group of adjacent cells separately', () => {
+    gameState.playerCells = [
+      makeCell(100, 100, 100),
+      makeCell(105, 100, 100),
+      makeCell(1500, 1500, 100),  // Far away from every other cell
+      makeCell(500, 500, 100),
+      makeCell(505, 500, 100)
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(3);
+    expect(gameState.playerCells.map(cell => cell.score).sort()).toEqual([100, 200, 200]);
+  });
+
+  test('attracts distant cells towards each other', () => {
+    gameState.playerCells = [makeCell(100, 100, 100), makeCell(300, 100, 100)];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(gameState.playerCells[0].velocityX).toBeGreaterThan(0);  // Pulled right
+    expect(gameState.playerCells[1].velocityX).toBeLessThan(0);  // Pulled left
+  });
+
+  test('repels cells that overlap before the merge cooldown', () => {
+    const splitTime = Date.now() - MERGE_COOLDOWN / 2;
+    gameState.playerCells = [
+      makeCell(100, 100, 100, splitTime),
+      makeCell(140, 100, 100, splitTime)
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(gameState.playerCells[0].velocityX).toBeLessThan(0);  // Pushed left
+    expect(gameState.playerCells[1].velocityX).toBeGreaterThan(0);  // Pushed right
+  });
+
+  test('ignores malformed cells while merging', () => {
+    gameState.playerCells = [makeCell(100, 100, 100), null, { x: 100, y: 100 }];
+
+    expect(() => updatePlayer()).not.toThrow();
+    expect(gameState.playerCells.length).toBe(3);
   });
 });

@@ -1,6 +1,7 @@
-import { handleFoodCollisions, handlePlayerAICollisions, handleAIAICollisions } from '../collisions.js';
+import { handleFoodCollisions, handlePlayerAICollisions, handleAIAICollisions, respawnEntities } from '../collisions.js';
 import { gameState } from '../gameState.js';
 import { getSize } from '../utils.js';
+import { AI_COUNT, FOOD_COUNT, STARTING_SCORE } from '../config.js';
 
 // Mock gameState
 jest.mock('../gameState.js', () => ({
@@ -62,6 +63,25 @@ describe('handleFoodCollisions', () => {
     handleFoodCollisions();
 
     expect(gameState.playerCells[0].score).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
+  });
+
+  test('AI consumes food when overlapping', () => {
+    gameState.aiPlayers = [{ x: 100, y: 100, score: 100 }];
+    gameState.food = [{ x: 100, y: 100 }, { x: 900, y: 900 }];
+
+    handleFoodCollisions();
+
+    expect(gameState.food.length).toBe(1);
+    expect(gameState.aiPlayers[0].score).toBe(110);
+    gameState.aiPlayers = [];
+  });
+
+  test('skips malformed entities and food entries', () => {
+    gameState.playerCells = [null, { x: 100 }];
+    gameState.food = [null, { x: 100, y: 100 }];
+
+    expect(() => handleFoodCollisions()).not.toThrow();
+    expect(gameState.food.length).toBe(2);
   });
 });
 
@@ -182,6 +202,18 @@ describe('handleAIAICollisions', () => {
     expect(() => handleAIAICollisions()).not.toThrow();
   });
 
+  test('later AI consumes an earlier smaller AI', () => {
+    const ai1 = { x: 100, y: 100, score: 100 };  // Small AI
+    const ai2 = { x: 100, y: 100, score: 400 };  // Large AI
+
+    gameState.aiPlayers = [ai1, ai2];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(1);
+    expect(gameState.aiPlayers[0].score).toBe(600);  // 400 + 100 + 100 bonus
+  });
+
   test('prevents score overflow in AI collisions', () => {
     const ai1 = { x: 100, y: 100, score: Number.MAX_SAFE_INTEGER - 100 };
     const ai2 = { x: 100, y: 100, score: 100 };
@@ -194,5 +226,34 @@ describe('handleAIAICollisions', () => {
     gameState.aiPlayers.forEach(ai => {
       expect(ai.score).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
     });
+  });
+});
+
+describe('respawnEntities', () => {
+  beforeEach(() => {
+    gameState.playerCells = [];
+    gameState.aiPlayers = [];
+    gameState.food = [];
+  });
+
+  test('refills food, AI players and the player cell', () => {
+    respawnEntities();
+
+    expect(gameState.food.length).toBe(FOOD_COUNT);
+    expect(gameState.aiPlayers.length).toBe(AI_COUNT);
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(STARTING_SCORE);
+  });
+
+  test('leaves a populated world untouched', () => {
+    gameState.food = Array.from({ length: FOOD_COUNT }, () => ({ x: 0, y: 0 }));
+    gameState.aiPlayers = Array.from({ length: AI_COUNT }, () => ({ x: 0, y: 0, score: 50 }));
+    gameState.playerCells = [{ x: 0, y: 0, score: 100 }];
+
+    respawnEntities();
+
+    expect(gameState.food.length).toBe(FOOD_COUNT);
+    expect(gameState.aiPlayers.length).toBe(AI_COUNT);
+    expect(gameState.playerCells.length).toBe(1);
   });
 });
