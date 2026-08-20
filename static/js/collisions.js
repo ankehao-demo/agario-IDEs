@@ -20,17 +20,21 @@ function applyScoreGainsAndRemove(entities, scoreGains, indicesToRemove) {
     removeEntities(entities, indicesToRemove);
 }
 
+function getAIConsumerIndex(ai1Size, ai2Size, ai1Index, ai2Index) {
+    if (ai1Size > ai2Size * COLLISION_THRESHOLD) return ai1Index;
+    if (ai2Size > ai1Size * COLLISION_THRESHOLD) return ai2Index;
+    return null;
+}
+
 function handleAIPairCollision(ai1, ai2, ai1Index, ai2Index, aisToRemove, scoreGains) {
     const distance = getDistance(ai1, ai2);
     const ai1Size = getSize(ai1.score);
     const ai2Size = getSize(ai2.score);
     const minDistance = ai1Size + ai2Size;
 
-    if (!(distance < minDistance)) return false;
+    if (!isWithinCollisionDistance(distance, minDistance)) return false;
 
-    const consumerIndex = ai1Size > ai2Size * COLLISION_THRESHOLD
-        ? ai1Index
-        : ai2Size > ai1Size * COLLISION_THRESHOLD ? ai2Index : null;
+    const consumerIndex = getAIConsumerIndex(ai1Size, ai2Size, ai1Index, ai2Index);
     if (consumerIndex === null) return false;
 
     const consumedIndex = consumerIndex === ai1Index ? ai2Index : ai1Index;
@@ -40,6 +44,10 @@ function handleAIPairCollision(ai1, ai2, ai1Index, ai2Index, aisToRemove, scoreG
     aisToRemove.add(consumedIndex);
 
     return consumedIndex === ai1Index;
+}
+
+function isWithinCollisionDistance(distance, minDistance) {
+    return distance < minDistance;
 }
 
 function processAIPairCollision(ai1, ai1Index, ai2Index, aisToRemove, scoreGains) {

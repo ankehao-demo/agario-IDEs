@@ -33,6 +33,37 @@ function getUnusedAIName() {
     return AI_NAMES.find(name => !usedNames.has(name)) || AI_NAMES[0];
 }
 
+function collectMergeableCells(now) {
+    const cellsToMerge = [];
+
+    // First pass: calculate merging forces and identify mergeable cells
+    for (let i = 0; i < gameState.playerCells.length; i++) {
+        const cell1 = gameState.playerCells[i];
+        if (!cell1 || typeof cell1.score !== 'number') continue;
+
+        // Skip if cell is already marked for merging
+        if (cellsToMerge.includes(i)) continue;
+
+        processCellPairs(cell1, i, now, cellsToMerge);
+    }
+
+    return cellsToMerge;
+}
+
+function processCellPairs(cell1, cell1Index, now, cellsToMerge) {
+    for (let j = cell1Index + 1; j < gameState.playerCells.length; j++) {
+        const cell2 = gameState.playerCells[j];
+        if (!cell2 || typeof cell2.score !== 'number') continue;
+
+        // Skip if cell is already marked for merging
+        if (cellsToMerge.includes(j)) continue;
+
+        if (processCellPair(cell1, cell2, now)) {
+            cellsToMerge.push(cell1Index, j);
+        }
+    }
+}
+
 function processCellPair(cell1, cell2, now) {
     const distance = getDistance(cell1, cell2);
     const cell1Size = getSize(cell1.score);
@@ -160,33 +191,6 @@ function updateCellMerging() {
         const groups = groupMergingIndices(cellsToMerge);
         mergeCellGroups(groups);
     }
-}
-
-function collectMergeableCells(now) {
-    const cellsToMerge = [];
-
-    // First pass: calculate merging forces and identify mergeable cells
-    for (let i = 0; i < gameState.playerCells.length; i++) {
-        const cell1 = gameState.playerCells[i];
-        if (!cell1 || typeof cell1.score !== 'number') continue;
-        
-        // Skip if cell is already marked for merging
-        if (cellsToMerge.includes(i)) continue;
-
-        for (let j = i + 1; j < gameState.playerCells.length; j++) {
-            const cell2 = gameState.playerCells[j];
-            if (!cell2 || typeof cell2.score !== 'number') continue;
-            
-            // Skip if cell is already marked for merging
-            if (cellsToMerge.includes(j)) continue;
-
-            if (processCellPair(cell1, cell2, now)) {
-                cellsToMerge.push(i, j);
-            }
-        }
-    }
-
-    return cellsToMerge;
 }
 
 export function updatePlayer() {
