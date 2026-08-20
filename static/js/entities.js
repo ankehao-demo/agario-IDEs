@@ -58,9 +58,7 @@ function processCellPairs(cell1, cell1Index, now, cellsToMerge) {
         // Skip if cell is already marked for merging
         if (cellsToMerge.includes(j)) continue;
 
-        if (processCellPair(cell1, cell2, now)) {
-            cellsToMerge.push(cell1Index, j);
-        }
+        if (processCellPair(cell1, cell2, now)) cellsToMerge.push(cell1Index, j);
     }
 }
 
@@ -78,9 +76,7 @@ function processCellPair(cell1, cell2, now) {
 
     if (distance < minMergeDistance && canMerge) {
         // Mark cells for merging only if they're very close
-        if (distance < minDistance * 0.5) {
-            return true;
-        }
+        if (distance < minDistance * 0.5) return true;
 
         // Strong attraction force when close to merging
         const dx = cell2.x - cell1.x;
@@ -91,8 +87,7 @@ function processCellPair(cell1, cell2, now) {
         cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
         cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
         cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
-        cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
-        return false;
+        cell2.velocityY = (cell2.velocityY || 0) - dy * factor; return false;
     }
 
     // Calculate repulsion when too close
@@ -119,10 +114,8 @@ function processCellPair(cell1, cell2, now) {
         cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
         cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
         cell2.velocityX = (cell2.velocityX || 0) - dx * factor;
-        cell2.velocityY = (cell2.velocityY || 0) - dy * factor;
-    }
-
-    return false;
+        cell2.velocityY = (cell2.velocityY || 0) - dy * factor; return false;
+    } return false;
 }
 
 function groupMergingIndices(cellsToMerge) {
@@ -147,9 +140,7 @@ function groupMergingIndices(cellsToMerge) {
             currentGroup = [current];
         }
     }
-    groups.push(currentGroup);
-
-    return groups;
+    groups.push(currentGroup); return groups;
 }
 
 function mergeCellGroups(groups) {
@@ -187,10 +178,7 @@ function updateCellMerging() {
     const cellsToMerge = collectMergeableCells(now);
 
     // Second pass: merge cells
-    if (cellsToMerge.length > 0) {
-        const groups = groupMergingIndices(cellsToMerge);
-        mergeCellGroups(groups);
-    }
+    if (cellsToMerge.length > 0) { const groups = groupMergingIndices(cellsToMerge); mergeCellGroups(groups); }
 }
 
 export function updatePlayer() {
