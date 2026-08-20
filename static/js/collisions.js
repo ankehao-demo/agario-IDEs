@@ -3,6 +3,54 @@ import { getDistance, getSize, getRandomPosition, findSafeSpawnLocation } from '
 import { FOOD_SIZE, FOOD_SCORE, COLLISION_THRESHOLD, FOOD_COUNT, AI_COUNT, STARTING_SCORE, WORLD_SIZE } from './config.js';
 import { respawnAI } from './entities.js';
 
+function removeEntities(entities, indicesToRemove) {
+    [...indicesToRemove].sort((a, b) => b - a).forEach(index => {
+        entities.splice(index, 1);
+    });
+}
+
+function applyScoreGainsAndRemove(entities, scoreGains, indicesToRemove) {
+    scoreGains.forEach((gain, entityIndex) => {
+        if (!indicesToRemove.has(entityIndex) && entities[entityIndex]) {
+            // Prevent score overflow
+            entities[entityIndex].score = Math.min(Number.MAX_SAFE_INTEGER, entities[entityIndex].score + gain);
+        }
+    });
+
+    removeEntities(entities, indicesToRemove);
+}
+
+function handleAIPairCollision(ai1, ai2, ai1Index, ai2Index, aisToRemove, scoreGains) {
+    const distance = getDistance(ai1, ai2);
+    const ai1Size = getSize(ai1.score);
+    const ai2Size = getSize(ai2.score);
+    const minDistance = ai1Size + ai2Size;
+
+    if (distance < minDistance) {
+        if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
+            const currentGain = scoreGains.get(ai1Index) || 0;
+            scoreGains.set(ai1Index, currentGain + ai2.score + 100);
+            aisToRemove.add(ai2Index);
+        } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
+            const currentGain = scoreGains.get(ai2Index) || 0;
+            scoreGains.set(ai2Index, currentGain + ai1.score + 100);
+            aisToRemove.add(ai1Index);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function processAIPairCollision(ai1, ai1Index, ai2Index, aisToRemove, scoreGains) {
+    if (aisToRemove.has(ai2Index)) return false;
+
+    const ai2 = gameState.aiPlayers[ai2Index];
+    if (!ai2 || typeof ai2.score !== 'number') return false;
+
+    return handleAIPairCollision(ai1, ai2, ai1Index, ai2Index, aisToRemove, scoreGains);
+}
+
 export function handleFoodCollisions() {
     // Player cells eating food
     for (const playerCell of gameState.playerCells) {
@@ -82,22 +130,10 @@ export function handlePlayerAICollisions() {
 
     // Apply all changes after collision checks
     // Remove consumed AIs (in reverse order)
-    [...aiIndicesToRemove].sort((a, b) => b - a).forEach(index => {
-        gameState.aiPlayers.splice(index, 1);
-    });
+    removeEntities(gameState.aiPlayers, aiIndicesToRemove);
 
     // Apply score gains to surviving player cells
-    scoreGains.forEach((gain, cellIndex) => {
-        if (!playerCellsToRemove.has(cellIndex) && gameState.playerCells[cellIndex]) {
-            // Prevent score overflow
-            gameState.playerCells[cellIndex].score = Math.min(Number.MAX_SAFE_INTEGER, gameState.playerCells[cellIndex].score + gain);
-        }
-    });
-
-    // Remove consumed player cells (in reverse order)
-    [...playerCellsToRemove].sort((a, b) => b - a).forEach(index => {
-        gameState.playerCells.splice(index, 1);
-    });
+    applyScoreGainsAndRemove(gameState.playerCells, scoreGains, playerCellsToRemove);
 
     // Respawn player if all cells are gone
     if (gameState.playerCells.length === 0) {
@@ -123,43 +159,13 @@ export function handleAIAICollisions() {
         if (!ai1 || typeof ai1.score !== 'number') continue;
 
         for (let j = i + 1; j < gameState.aiPlayers.length; j++) {
-            if (aisToRemove.has(j)) continue;
-            
-            const ai2 = gameState.aiPlayers[j];
-            if (!ai2 || typeof ai2.score !== 'number') continue;
-            
-            const distance = getDistance(ai1, ai2);
-            const ai1Size = getSize(ai1.score);
-            const ai2Size = getSize(ai2.score);
-            const minDistance = ai1Size + ai2Size;
-
-            if (distance < minDistance) {
-                if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(i) || 0;
-                    scoreGains.set(i, currentGain + ai2.score + 100);
-                    aisToRemove.add(j);
-                } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(j) || 0;
-                    scoreGains.set(j, currentGain + ai1.score + 100);
-                    aisToRemove.add(i);
-                    break;
-                }
+            if (processAIPairCollision(ai1, i, j, aisToRemove, scoreGains)) {
+                break;
             }
         }
     }
 
-    // Apply score gains to surviving AIs
-    scoreGains.forEach((gain, aiIndex) => {
-        if (!aisToRemove.has(aiIndex) && gameState.aiPlayers[aiIndex]) {
-            // Prevent score overflow
-            gameState.aiPlayers[aiIndex].score = Math.min(Number.MAX_SAFE_INTEGER, gameState.aiPlayers[aiIndex].score + gain);
-        }
-    });
-
-    // Remove consumed AIs (in reverse order)
-    [...aisToRemove].sort((a, b) => b - a).forEach(index => {
-        gameState.aiPlayers.splice(index, 1);
-    });
+    applyScoreGainsAndRemove(gameState.aiPlayers, scoreGains, aisToRemove);
 }
 
 export function respawnEntities() {
