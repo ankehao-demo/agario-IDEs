@@ -20,34 +20,26 @@ function applyScoreGainsAndRemove(entities, scoreGains, indicesToRemove) {
     removeEntities(entities, indicesToRemove);
 }
 
-function getAIConsumerIndex(ai1Size, ai2Size, ai1Index, ai2Index) {
-    if (ai1Size > ai2Size * COLLISION_THRESHOLD) return ai1Index;
-    if (ai2Size > ai1Size * COLLISION_THRESHOLD) return ai2Index;
-    return null;
-}
-
 function handleAIPairCollision(ai1, ai2, ai1Index, ai2Index, aisToRemove, scoreGains) {
     const distance = getDistance(ai1, ai2);
     const ai1Size = getSize(ai1.score);
     const ai2Size = getSize(ai2.score);
     const minDistance = ai1Size + ai2Size;
 
-    if (!isWithinCollisionDistance(distance, minDistance)) return false;
+    if (distance < minDistance) {
+        if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
+            const currentGain = scoreGains.get(ai1Index) || 0;
+            scoreGains.set(ai1Index, currentGain + ai2.score + 100);
+            aisToRemove.add(ai2Index);
+        } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
+            const currentGain = scoreGains.get(ai2Index) || 0;
+            scoreGains.set(ai2Index, currentGain + ai1.score + 100);
+            aisToRemove.add(ai1Index);
+            return true;
+        }
+    }
 
-    const consumerIndex = getAIConsumerIndex(ai1Size, ai2Size, ai1Index, ai2Index);
-    if (consumerIndex === null) return false;
-
-    const consumedIndex = consumerIndex === ai1Index ? ai2Index : ai1Index;
-    const consumedScore = consumerIndex === ai1Index ? ai2.score : ai1.score;
-    const currentGain = scoreGains.get(consumerIndex) || 0;
-    scoreGains.set(consumerIndex, currentGain + consumedScore + 100);
-    aisToRemove.add(consumedIndex);
-
-    return consumedIndex === ai1Index;
-}
-
-function isWithinCollisionDistance(distance, minDistance) {
-    return distance < minDistance;
+    return false;
 }
 
 function processAIPairCollision(ai1, ai1Index, ai2Index, aisToRemove, scoreGains) {
