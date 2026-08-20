@@ -31,9 +31,7 @@ function isSafeFromEntities(pos, entities, minDistance) {
     for (const entity of entities) {
         const distance = getDistance(pos, entity);
         const safeDistance = getSize(entity.score) + minDistance;
-        if (distance < safeDistance) {
-            return false;
-        }
+        if (distance < safeDistance) return false;
     }
 
     return true;
@@ -70,18 +68,14 @@ function findFurthestSpawnPosition(gameState) {
 
 export function findSafeSpawnLocation(gameState, minDistance = 100) {
     const maxAttempts = 50;
-    let attempts = 0;
 
-    while (attempts < maxAttempts) {
+    for (let attempts = 0; attempts < maxAttempts; attempts++) {
         const pos = getRandomPosition();
 
         if (isSafeSpawnPosition(pos, gameState, minDistance)) {
             return pos;
         }
-
-        attempts++;
     }
 
-    // If no safe spot found after max attempts, find the spot furthest from all players
     return findFurthestSpawnPosition(gameState);
 }

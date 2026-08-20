@@ -26,20 +26,20 @@ function handleAIPairCollision(ai1, ai2, ai1Index, ai2Index, aisToRemove, scoreG
     const ai2Size = getSize(ai2.score);
     const minDistance = ai1Size + ai2Size;
 
-    if (distance < minDistance) {
-        if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
-            const currentGain = scoreGains.get(ai1Index) || 0;
-            scoreGains.set(ai1Index, currentGain + ai2.score + 100);
-            aisToRemove.add(ai2Index);
-        } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
-            const currentGain = scoreGains.get(ai2Index) || 0;
-            scoreGains.set(ai2Index, currentGain + ai1.score + 100);
-            aisToRemove.add(ai1Index);
-            return true;
-        }
-    }
+    if (!(distance < minDistance)) return false;
 
-    return false;
+    const consumerIndex = ai1Size > ai2Size * COLLISION_THRESHOLD
+        ? ai1Index
+        : ai2Size > ai1Size * COLLISION_THRESHOLD ? ai2Index : null;
+    if (consumerIndex === null) return false;
+
+    const consumedIndex = consumerIndex === ai1Index ? ai2Index : ai1Index;
+    const consumedScore = consumerIndex === ai1Index ? ai2.score : ai1.score;
+    const currentGain = scoreGains.get(consumerIndex) || 0;
+    scoreGains.set(consumerIndex, currentGain + consumedScore + 100);
+    aisToRemove.add(consumedIndex);
+
+    return consumedIndex === ai1Index;
 }
 
 function processAIPairCollision(ai1, ai1Index, ai2Index, aisToRemove, scoreGains) {

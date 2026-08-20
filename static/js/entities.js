@@ -153,6 +153,16 @@ function mergeCellGroups(groups) {
 
 function updateCellMerging() {
     const now = Date.now();
+    const cellsToMerge = collectMergeableCells(now);
+
+    // Second pass: merge cells
+    if (cellsToMerge.length > 0) {
+        const groups = groupMergingIndices(cellsToMerge);
+        mergeCellGroups(groups);
+    }
+}
+
+function collectMergeableCells(now) {
     const cellsToMerge = [];
 
     // First pass: calculate merging forces and identify mergeable cells
@@ -176,11 +186,7 @@ function updateCellMerging() {
         }
     }
 
-    // Second pass: merge cells
-    if (cellsToMerge.length > 0) {
-        const groups = groupMergingIndices(cellsToMerge);
-        mergeCellGroups(groups);
-    }
+    return cellsToMerge;
 }
 
 export function updatePlayer() {
