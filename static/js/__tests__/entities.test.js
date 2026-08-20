@@ -1,6 +1,13 @@
 import { splitPlayerCell, handlePlayerSplit, updatePlayer } from '../entities.js';
 import { gameState, mouse } from '../gameState.js';
-import { MIN_SPLIT_SCORE, MAX_PLAYER_CELLS } from '../config.js';
+import {
+  MIN_SPLIT_SCORE,
+  MAX_PLAYER_CELLS,
+  MERGE_COOLDOWN,
+  MERGE_FORCE,
+  MERGE_START_FORCE
+} from '../config.js';
+import { getSize } from '../utils.js';
 
 // Mock gameState and mouse
 jest.mock('../gameState.js', () => ({
@@ -223,5 +230,109 @@ describe('updatePlayer', () => {
 
     expect(isFinite(gameState.playerCells[0].x)).toBe(true);
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
+  });
+});
+
+describe('updatePlayer cell merging', () => {
+  beforeEach(() => {
+    gameState.playerCells = [];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+  });
+
+  const getMinDistance = (score1, score2) => getSize(score1) + getSize(score2);
+  const getOldSplitTime = () => Date.now() - MERGE_COOLDOWN - 1;
+  const getRecentSplitTime = () => Date.now();
+
+  test('merges overlapping cells with mass-weighted values', () => {
+    const cell1 = {
+      x: 100,
+      y: 200,
+      score: 100,
+      velocityX: 2,
+      velocityY: 1,
+      splitTime: getOldSplitTime()
+    };
+    const cell2 = {
+      x: 110,
+      y: 220,
+      score: 300,
+      velocityX: -1,
+      velocityY: 3,
+      splitTime: getOldSplitTime()
+    };
+    gameState.playerCells = [cell1, cell2];
+
+    updatePlayer();
+
+    expect(gameState.playerCells).toHaveLength(1);
+    expect(gameState.playerCells[0].score).toBe(400);
+    expect(gameState.playerCells[0].x).toBeCloseTo((100 * 100 + 110 * 300) / 400);
+    expect(gameState.playerCells[0].y).toBeCloseTo((200 * 100 + 220 * 300) / 400);
+    expect(gameState.playerCells[0].velocityX).toBeCloseTo((2 * 100 - 1 * 300) / 400);
+    expect(gameState.playerCells[0].velocityY).toBeCloseTo((1 * 100 + 3 * 300) / 400);
+  });
+
+  test('applies merge attraction without merging cells', () => {
+    const score = 100;
+    const distance = getMinDistance(score, score) * 0.75;
+    gameState.playerCells = [
+      { x: 100, y: 100, score, velocityX: 0, velocityY: 0, splitTime: getOldSplitTime() },
+      { x: 100 + distance, y: 100, score, velocityX: 0, velocityY: 0, splitTime: getOldSplitTime() }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells).toHaveLength(2);
+    expect(gameState.playerCells[0].velocityX).toBeCloseTo(MERGE_FORCE);
+    expect(gameState.playerCells[1].velocityX).toBeCloseTo(-MERGE_FORCE);
+  });
+
+  test('applies repulsion to cells within the merge cooldown', () => {
+    const score = 100;
+    const minDistance = getMinDistance(score, score);
+    const distance = minDistance * 0.25;
+    gameState.playerCells = [
+      { x: 100, y: 100, score, velocityX: 0, velocityY: 0, splitTime: getRecentSplitTime() },
+      { x: 100 + distance, y: 100, score, velocityX: 0, velocityY: 0, splitTime: getRecentSplitTime() }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells).toHaveLength(2);
+    expect(gameState.playerCells[0].velocityX).toBeLessThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeGreaterThan(0);
+  });
+
+  test('applies start attraction to cells farther apart than their combined size', () => {
+    const score = 100;
+    const distance = getMinDistance(score, score) * 1.5;
+    gameState.playerCells = [
+      { x: 100, y: 100, score, velocityX: 0, velocityY: 0, splitTime: getRecentSplitTime() },
+      { x: 100 + distance, y: 100, score, velocityX: 0, velocityY: 0, splitTime: getRecentSplitTime() }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells).toHaveLength(2);
+    expect(gameState.playerCells[0].velocityX).toBeCloseTo(MERGE_START_FORCE);
+    expect(gameState.playerCells[1].velocityX).toBeCloseTo(-MERGE_START_FORCE);
+  });
+
+  test('merges three adjacent cells as one group', () => {
+    const score = 100;
+    const spacing = getMinDistance(score, score) * 0.2;
+    gameState.playerCells = [
+      { x: 100, y: 100, score, velocityX: 1, velocityY: 0, splitTime: getOldSplitTime() },
+      { x: 100 + spacing, y: 100, score, velocityX: 2, velocityY: 0, splitTime: getOldSplitTime() },
+      { x: 100 + spacing * 2, y: 100, score, velocityX: 3, velocityY: 0, splitTime: getOldSplitTime() }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells).toHaveLength(1);
+    expect(gameState.playerCells[0].score).toBe(score * 3);
+    expect(gameState.playerCells[0].x).toBeCloseTo(100 + spacing);
+    expect(gameState.playerCells[0].velocityX).toBeCloseTo(2);
   });
 });
