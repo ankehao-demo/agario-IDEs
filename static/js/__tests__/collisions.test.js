@@ -127,6 +127,36 @@ describe('handlePlayerAICollisions', () => {
     // Ensure score doesn't overflow
     expect(gameState.playerCells[0].score).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
   });
+
+  test('skips an AI already marked for removal', () => {
+    const firstPlayer = { x: 100, y: 100, score: 400 };
+    const secondPlayer = { x: 100, y: 100, score: 400 };
+    const ai = { x: 100, y: 100, score: 100 };
+
+    gameState.playerCells = [firstPlayer, secondPlayer];
+    gameState.aiPlayers = [ai];
+
+    handlePlayerAICollisions();
+
+    expect(gameState.aiPlayers).toHaveLength(0);
+    expect(gameState.playerCells[0].score).toBe(600);
+    expect(gameState.playerCells[1].score).toBe(400);
+  });
+
+  test('skips a player cell already marked for removal', () => {
+    const playerCell = { x: 100, y: 100, score: 100 };
+    const firstAI = { x: 100, y: 100, score: 400 };
+    const secondAI = { x: 100, y: 100, score: 400 };
+
+    gameState.playerCells = [playerCell];
+    gameState.aiPlayers = [firstAI, secondAI];
+
+    handlePlayerAICollisions();
+
+    expect(gameState.playerCells).toHaveLength(1);
+    expect(gameState.aiPlayers[0].score).toBe(600);
+    expect(gameState.aiPlayers[1].score).toBe(400);
+  });
 });
 
 describe('handleAIAICollisions', () => {
@@ -194,5 +224,18 @@ describe('handleAIAICollisions', () => {
     gameState.aiPlayers.forEach(ai => {
       expect(ai.score).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
     });
+  });
+
+  test('removes the lower-index AI and breaks the inner loop', () => {
+    const smallerAI = { x: 100, y: 100, score: 100 };
+    const largerAI = { x: 100, y: 100, score: 400 };
+
+    gameState.aiPlayers = [smallerAI, largerAI];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers).toHaveLength(1);
+    expect(gameState.aiPlayers[0]).toBe(largerAI);
+    expect(gameState.aiPlayers[0].score).toBe(600);
   });
 });
