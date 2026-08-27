@@ -225,3 +225,101 @@ describe('updatePlayer', () => {
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
   });
 });
+
+describe('updatePlayer cell merging', () => {
+  beforeEach(() => {
+    gameState.playerCells = [];
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+    jest.spyOn(Date, 'now').mockReturnValue(20000);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('merges eligible cells with weighted position and velocity', () => {
+    gameState.playerCells = [
+      { x: 0, y: 0, score: 100, velocityX: 2, velocityY: 4, splitTime: 0 },
+      { x: 10, y: 0, score: 300, velocityX: 6, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells).toHaveLength(1);
+    expect(gameState.playerCells[0]).toEqual({
+      x: 7.5,
+      y: 0,
+      score: 400,
+      velocityX: 5,
+      velocityY: 1,
+      splitTime: 0
+    });
+  });
+
+  test('applies strong attraction to eligible cells that are close', () => {
+    gameState.playerCells = [
+      { x: 0, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 60, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells[0].velocityX).toBeCloseTo(0.3);
+    expect(gameState.playerCells[1].velocityX).toBeCloseTo(-0.3);
+  });
+
+  test('applies repulsion to cells that are too close before cooldown', () => {
+    gameState.playerCells = [
+      { x: 0, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 20000 },
+      { x: 50, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 20000 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells[0].velocityX).toBeCloseTo(-2.5);
+    expect(gameState.playerCells[1].velocityX).toBeCloseTo(2.5);
+  });
+
+  test('applies initial attraction to cells that are far apart before cooldown', () => {
+    gameState.playerCells = [
+      { x: 0, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 20000 },
+      { x: 70, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 20000 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells[0].velocityX).toBeCloseTo(0.1);
+    expect(gameState.playerCells[1].velocityX).toBeCloseTo(-0.1);
+  });
+
+  test('groups and merges separate adjacent index ranges', () => {
+    gameState.playerCells = [
+      { x: 0, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 10, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 500, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 1000, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 1010, y: 0, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells).toHaveLength(3);
+    expect(gameState.playerCells).toEqual(expect.arrayContaining([
+      expect.objectContaining({ x: 5, score: 200 }),
+      expect.objectContaining({ x: 1005, score: 200 }),
+      expect.objectContaining({ x: 500, score: 100 })
+    ]));
+  });
+
+  test('skips malformed merge candidates', () => {
+    gameState.playerCells = [
+      null,
+      { x: 100, y: 100 },
+      { x: 200, y: 200, score: 100, velocityX: 0, velocityY: 0 }
+    ];
+
+    expect(() => updatePlayer()).not.toThrow();
+    expect(gameState.playerCells).toHaveLength(3);
+  });
+});

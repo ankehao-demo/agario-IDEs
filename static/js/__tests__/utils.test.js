@@ -1,4 +1,5 @@
 import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { findSafeSpawnLocation } from '../utils.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,45 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('returns the first safe sampled position', () => {
+    const random = jest.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.1)
+      .mockReturnValueOnce(0.2);
+
+    const result = findSafeSpawnLocation({
+      aiPlayers: [],
+      playerCells: []
+    });
+
+    expect(result).toEqual({ x: 200, y: 400 });
+    expect(random).toHaveBeenCalledTimes(2);
+  });
+
+  test('selects the furthest fallback position after unsafe attempts', () => {
+    const randomValues = [
+      ...Array(100).fill(0),
+      0.1, 0.1,
+      0.2, 0.2,
+      0.15, 0.15,
+      ...Array(36).fill(0)
+    ];
+    const random = jest.spyOn(Math, 'random')
+      .mockImplementation(() => randomValues.shift());
+
+    const result = findSafeSpawnLocation({
+      aiPlayers: [],
+      playerCells: [{ x: 0, y: 0, score: 100 }]
+    });
+
+    expect(result).toEqual({ x: 400, y: 400 });
+    expect(random).toHaveBeenCalledTimes(142);
   });
 });

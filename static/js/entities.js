@@ -33,6 +33,10 @@ function getUnusedAIName() {
     return AI_NAMES.find(name => !usedNames.has(name)) || AI_NAMES[0];
 }
 
+function isMergeCandidate(cell, index, cellsToMerge) {
+    return cell && typeof cell.score === 'number' && !cellsToMerge.includes(index);
+}
+
 function applyVelocity(cell1, cell2, dx, dy, factor) {
     cell1.velocityX = (cell1.velocityX || 0) + dx * factor;
     cell1.velocityY = (cell1.velocityY || 0) + dy * factor;
@@ -93,13 +97,11 @@ function collectCellsToMerge() {
 
     for (let i = 0; i < gameState.playerCells.length; i++) {
         const cell1 = gameState.playerCells[i];
-        if (!cell1 || typeof cell1.score !== 'number') continue;
-        if (cellsToMerge.includes(i)) continue;
+        if (!isMergeCandidate(cell1, i, cellsToMerge)) continue;
 
         for (let j = i + 1; j < gameState.playerCells.length; j++) {
             const cell2 = gameState.playerCells[j];
-            if (!cell2 || typeof cell2.score !== 'number') continue;
-            if (cellsToMerge.includes(j)) continue;
+            if (!isMergeCandidate(cell2, j, cellsToMerge)) continue;
 
             if (resolveCellPair(cell1, cell2, now)) {
                 cellsToMerge.push(i, j);
