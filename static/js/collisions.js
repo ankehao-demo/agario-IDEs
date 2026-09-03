@@ -43,40 +43,45 @@ export function handleFoodCollisions() {
     }
 }
 
+function hasScore(entity) {
+    return Boolean(entity) && typeof entity.score === 'number';
+}
+
+// Resolves a single player-cell/AI pair, recording the outcome in the given trackers.
+function resolvePlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, trackers) {
+    const { aiIndicesToRemove, playerCellsToRemove, scoreGains } = trackers;
+
+    const distance = getDistance(playerCell, ai);
+    const playerSize = getSize(playerCell.score);
+    const aiSize = getSize(ai.score);
+
+    if (distance >= playerSize + aiSize) return;
+
+    if (playerSize > aiSize * COLLISION_THRESHOLD) {
+        const currentGain = scoreGains.get(playerCellIndex) || 0;
+        scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
+        aiIndicesToRemove.add(aiIndex);
+    } else if (aiSize > playerSize * COLLISION_THRESHOLD) {
+        // Prevent score overflow
+        ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
+        playerCellsToRemove.add(playerCellIndex);
+    }
+}
+
 export function handlePlayerAICollisions() {
     // Track changes to make after all collision checks
     const aiIndicesToRemove = new Set();
     const playerCellsToRemove = new Set();
     const scoreGains = new Map(); // Map of cell index to score gain
+    const trackers = { aiIndicesToRemove, playerCellsToRemove, scoreGains };
 
     // Check each player cell against each AI
     gameState.playerCells.forEach((playerCell, playerCellIndex) => {
-        if (!playerCell || typeof playerCell.score !== 'number') return;
-        
+        if (!hasScore(playerCell)) return;
+
         gameState.aiPlayers.forEach((ai, aiIndex) => {
-            if (!ai || typeof ai.score !== 'number') return;
-            if (aiIndicesToRemove.has(aiIndex)) return;
-            if (playerCellsToRemove.has(playerCellIndex)) return;
-
-            const distance = getDistance(playerCell, ai);
-            const playerSize = getSize(playerCell.score);
-            const aiSize = getSize(ai.score);
-            const minDistance = playerSize + aiSize;
-
-            if (distance < minDistance) {
-                // Player cell is bigger
-                if (playerSize > aiSize * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(playerCellIndex) || 0;
-                    scoreGains.set(playerCellIndex, currentGain + ai.score + 100);
-                    aiIndicesToRemove.add(aiIndex);
-                }
-                // AI is bigger
-                else if (aiSize > playerSize * COLLISION_THRESHOLD) {
-                    // Prevent score overflow
-                    ai.score = Math.min(Number.MAX_SAFE_INTEGER, ai.score + playerCell.score + 100);
-                    playerCellsToRemove.add(playerCellIndex);
-                }
-            }
+            if (!hasScore(ai) || aiIndicesToRemove.has(aiIndex) || playerCellsToRemove.has(playerCellIndex)) return;
+            resolvePlayerAICollision(playerCell, playerCellIndex, ai, aiIndex, trackers);
         });
     });
 
