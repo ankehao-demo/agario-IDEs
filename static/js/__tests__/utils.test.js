@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,37 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+describe('findSafeSpawnLocation', () => {
+  test('returns a position inside the world when nothing is around', () => {
+    const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [] });
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
+  });
+
+  test('keeps a safe distance from existing entities', () => {
+    const ai = { x: 1000, y: 1000, score: 100 };
+    const cell = { x: 200, y: 200, score: 100 };
+    const state = { aiPlayers: [ai], playerCells: [cell] };
+
+    for (let i = 0; i < 20; i++) {
+      const pos = findSafeSpawnLocation(state, 100);
+      expect(getDistance(pos, ai)).toBeGreaterThanOrEqual(getSize(ai.score) + 100);
+      expect(getDistance(pos, cell)).toBeGreaterThanOrEqual(getSize(cell.score) + 100);
+    }
+  });
+
+  test('falls back to the furthest position when no safe spot exists', () => {
+    // A cell so large it covers the entire world forces the fallback search
+    const giant = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, score: (WORLD_SIZE * 2) ** 2 };
+    const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [giant] });
+
+    expect(isFinite(pos.x)).toBe(true);
+    expect(isFinite(pos.y)).toBe(true);
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
   });
 });
