@@ -110,7 +110,7 @@ function mergeCellGroup(group) {
     const avgVelocityY = cells.reduce((sum, cell) => sum + cell.velocityY * cell.score, 0) / totalScore;
 
     // Remove old cells (in reverse order to maintain correct indices)
-    const descending = group.toSorted((a, b) => b - a);
+    const descending = [...group].sort((a, b) => b - a);
     descending.forEach(index => {
         gameState.playerCells.splice(index, 1);
     });
