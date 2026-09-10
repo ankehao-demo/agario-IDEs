@@ -196,3 +196,44 @@ describe('handleAIAICollisions', () => {
     });
   });
 });
+describe('handleAIAICollisions ordering', () => {
+  beforeEach(() => {
+    gameState.aiPlayers = [];
+  });
+
+  test('smaller first AI is consumed by larger later AI', () => {
+    const small = { x: 100, y: 100, score: 100 };
+    const large = { x: 100, y: 100, score: 400 };
+
+    gameState.aiPlayers = [small, large];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers).toEqual([expect.objectContaining({ score: 600 })]);
+  });
+
+  test('consumed AI does not go on to consume others', () => {
+    const small = { x: 100, y: 100, score: 100 };
+    const large = { x: 100, y: 100, score: 400 };
+    const tiny = { x: 100, y: 100, score: 10 };
+
+    gameState.aiPlayers = [small, large, tiny];
+
+    handleAIAICollisions();
+
+    // large eats small (100 + 100 bonus) and tiny (10 + 100 bonus)
+    expect(gameState.aiPlayers.length).toBe(1);
+    expect(gameState.aiPlayers[0].score).toBe(710);
+  });
+
+  test('non-overlapping AIs are untouched', () => {
+    gameState.aiPlayers = [
+      { x: 0, y: 0, score: 400 },
+      { x: 1000, y: 1000, score: 100 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(2);
+  });
+});

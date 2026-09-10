@@ -225,3 +225,82 @@ describe('updatePlayer', () => {
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
   });
 });
+describe('cell merging (via updatePlayer)', () => {
+  const dateSpy = jest.spyOn(Date, 'now');
+
+  beforeEach(() => {
+    gameState.playerCells = [];
+    // Mouse at screen centre => no movement, only merging logic runs
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+    dateSpy.mockReturnValue(100000);
+  });
+
+  afterAll(() => dateSpy.mockRestore());
+
+  const makeCell = (x, score, splitTime) => ({ x, y: 0, score, velocityX: 0, velocityY: 0, splitTime });
+
+  test('merges cells that are past cooldown and overlapping', () => {
+    gameState.playerCells = [makeCell(0, 100, 0), makeCell(10, 100, 0)];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0].score).toBe(200);
+    expect(gameState.playerCells[0].x).toBe(5);
+    expect(gameState.playerCells[0].splitTime).toBe(0);
+  });
+
+  test('attracts cells past cooldown that are in merge range but not overlapping', () => {
+    gameState.playerCells = [makeCell(0, 100, 0), makeCell(100, 100, 0)];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(gameState.playerCells[0].velocityX).toBeGreaterThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeLessThan(0);
+  });
+
+  test('repels overlapping cells that are still in cooldown', () => {
+    const now = Date.now();
+    gameState.playerCells = [makeCell(0, 100, now), makeCell(40, 100, now)];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(gameState.playerCells[0].velocityX).toBeLessThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeGreaterThan(0);
+  });
+
+  test('weakly attracts distant cells that are still in cooldown', () => {
+    const now = Date.now();
+    gameState.playerCells = [makeCell(0, 100, now), makeCell(200, 100, now)];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(gameState.playerCells[0].velocityX).toBeGreaterThan(0);
+    expect(gameState.playerCells[1].velocityX).toBeLessThan(0);
+  });
+
+  test('merges multiple separate pairs and leaves unrelated cells alone', () => {
+    gameState.playerCells = [
+      makeCell(0, 100, 0), makeCell(10, 100, 0),
+      makeCell(1000, 50, 0),
+      makeCell(1900, 100, 0), makeCell(1910, 100, 0)
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(3);
+    const scores = gameState.playerCells.map(c => c.score).sort((a, b) => a - b);
+    expect(scores).toEqual([50, 200, 200]);
+  });
+
+  test('ignores malformed cells while merging', () => {
+    gameState.playerCells = [null, { x: 5 }, makeCell(0, 100, 0), makeCell(10, 100, 0)];
+
+    expect(() => updatePlayer()).not.toThrow();
+    expect(gameState.playerCells.filter(c => c && typeof c.score === 'number').length).toBe(1);
+  });
+});
