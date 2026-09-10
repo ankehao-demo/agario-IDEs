@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,32 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+describe('findSafeSpawnLocation', () => {
+  test('returns a position inside the world when it is empty', () => {
+    const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [] });
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
+  });
+
+  test('avoids existing entities when a safe spot exists', () => {
+    const ai = { x: 100, y: 100, score: 100 };
+    const cell = { x: 200, y: 200, score: 100 };
+    const pos = findSafeSpawnLocation({ aiPlayers: [ai], playerCells: [cell] }, 50);
+    expect(getDistance(pos, ai)).toBeGreaterThanOrEqual(getSize(ai.score) + 50);
+    expect(getDistance(pos, cell)).toBeGreaterThanOrEqual(getSize(cell.score) + 50);
+  });
+
+  test('falls back to the furthest position when nowhere is safe', () => {
+    // An entity so large that no spot in the world is clear of it
+    const giant = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, score: 1e7 };
+    const pos = findSafeSpawnLocation({ aiPlayers: [giant], playerCells: [] });
+    expect(pos.x).toBeGreaterThanOrEqual(0);
+    expect(pos.x).toBeLessThanOrEqual(WORLD_SIZE);
+    expect(pos.y).toBeGreaterThanOrEqual(0);
+    expect(pos.y).toBeLessThanOrEqual(WORLD_SIZE);
   });
 });
