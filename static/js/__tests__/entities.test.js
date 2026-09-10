@@ -293,8 +293,12 @@ describe('cell merging (via updatePlayer)', () => {
     updatePlayer();
 
     expect(gameState.playerCells.length).toBe(3);
-    const scores = gameState.playerCells.map(c => c.score).sort((a, b) => a - b);
-    expect(scores).toEqual([50, 200, 200]);
+    const merged = gameState.playerCells
+      .filter(c => c.score === 200)
+      .map(c => c.x)
+      .sort((a, b) => a - b);
+    expect(merged).toEqual([5, 1905]);
+    expect(gameState.playerCells.find(c => c.score === 50).x).toBe(1000);
   });
 
   test('ignores malformed cells while merging', () => {

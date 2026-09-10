@@ -78,74 +78,49 @@ function resolveCellPair(cell1, cell2, now) {
     return false;
 }
 
-// Groups descending-sorted unique indices into runs of consecutive values.
-function groupConsecutiveIndices(sortedIndices) {
-    const groups = [];
-    let currentGroup = [sortedIndices[0]];
-
-    for (let i = 1; i < sortedIndices.length; i++) {
-        const current = sortedIndices[i];
-        const prev = currentGroup[currentGroup.length - 1];
-
-        if (prev - current === 1) {
-            currentGroup.push(current);
-        } else {
-            groups.push(currentGroup);
-            currentGroup = [current];
-        }
-    }
-    groups.push(currentGroup);
-    return groups;
-}
-
-function mergeCellGroup(group) {
-    const cells = group.map(index => gameState.playerCells[index]);
-
+// Combines cells into one, weighting position and velocity by score.
+function mergeCells(cells) {
     const totalScore = cells.reduce((sum, cell) => sum + cell.score, 0);
-    const weightedX = cells.reduce((sum, cell) => sum + cell.x * cell.score, 0) / totalScore;
-    const weightedY = cells.reduce((sum, cell) => sum + cell.y * cell.score, 0) / totalScore;
-    const avgVelocityX = cells.reduce((sum, cell) => sum + cell.velocityX * cell.score, 0) / totalScore;
-    const avgVelocityY = cells.reduce((sum, cell) => sum + cell.velocityY * cell.score, 0) / totalScore;
+    const weighted = key => cells.reduce((sum, cell) => sum + cell[key] * cell.score, 0) / totalScore;
 
-    // Remove old cells (in reverse order to maintain correct indices)
-    group.sort((a, b) => b - a).forEach(index => {
-        gameState.playerCells.splice(index, 1);
-    });
-
-    gameState.playerCells.push({
-        x: weightedX,
-        y: weightedY,
+    return {
+        x: weighted('x'),
+        y: weighted('y'),
         score: totalScore,
-        velocityX: avgVelocityX,
-        velocityY: avgVelocityY,
+        velocityX: weighted('velocityX'),
+        velocityY: weighted('velocityY'),
         splitTime: 0
-    });
+    };
 }
 
 function updateCellMerging() {
     const now = Date.now();
     const cells = gameState.playerCells;
-    const cellsToMerge = [];
+    const merging = new Set();
+    const pairs = [];
 
-    // First pass: apply forces and identify mergeable cells
+    // First pass: apply forces and identify mergeable pairs
     for (let i = 0; i < cells.length; i++) {
-        if (!isValidCell(cells[i]) || cellsToMerge.includes(i)) continue;
+        if (!isValidCell(cells[i]) || merging.has(cells[i])) continue;
 
         for (let j = i + 1; j < cells.length; j++) {
-            if (!isValidCell(cells[j]) || cellsToMerge.includes(j)) continue;
+            if (!isValidCell(cells[j]) || merging.has(cells[j])) continue;
 
             if (resolveCellPair(cells[i], cells[j], now)) {
-                cellsToMerge.push(i, j);
+                pairs.push([cells[i], cells[j]]);
+                merging.add(cells[i]).add(cells[j]);
+                break;
             }
         }
     }
 
-    if (cellsToMerge.length === 0) return;
+    if (pairs.length === 0) return;
 
-    // Second pass: merge cells, highest indices first so splices stay valid
-    cellsToMerge.sort((a, b) => b - a);
-    const uniqueIndices = [...new Set(cellsToMerge)];
-    groupConsecutiveIndices(uniqueIndices).forEach(mergeCellGroup);
+    // Second pass: replace each merged pair with a single combined cell
+    gameState.playerCells = [
+        ...cells.filter(cell => !merging.has(cell)),
+        ...pairs.map(mergeCells)
+    ];
 }
 
 export function updatePlayer() {

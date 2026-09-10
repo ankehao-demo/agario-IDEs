@@ -29,7 +29,7 @@ export function calculateCenterOfMass(cells) {
 
 function isClearOf(pos, entities, minDistance) {
     return entities.every(entity =>
-        getDistance(pos, entity) >= getSize(entity.score) + minDistance
+        !(getDistance(pos, entity) < getSize(entity.score) + minDistance)
     );
 }
 
