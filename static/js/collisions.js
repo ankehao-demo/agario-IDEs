@@ -112,40 +112,54 @@ export function handlePlayerAICollisions() {
     }
 }
 
+function isValidEntity(entity) {
+    return Boolean(entity) && typeof entity.score === 'number';
+}
+
+// Returns which AI ('first' or 'second') gets eaten when the two collide, or null if neither
+function resolveAIPair(ai1, ai2) {
+    const ai1Size = getSize(ai1.score);
+    const ai2Size = getSize(ai2.score);
+
+    if (getDistance(ai1, ai2) >= ai1Size + ai2Size) return null;
+    if (ai1Size > ai2Size * COLLISION_THRESHOLD) return 'second';
+    if (ai2Size > ai1Size * COLLISION_THRESHOLD) return 'first';
+    return null;
+}
+
+function addScoreGain(scoreGains, index, amount) {
+    scoreGains.set(index, (scoreGains.get(index) || 0) + amount);
+}
+
+// Checks ai at index i against all later AIs; returns true if ai i was eaten
+function checkAIAgainstOthers(i, aisToRemove, scoreGains) {
+    const ais = gameState.aiPlayers;
+    const ai1 = ais[i];
+
+    for (let j = i + 1; j < ais.length; j++) {
+        const ai2 = ais[j];
+        if (aisToRemove.has(j) || !isValidEntity(ai2)) continue;
+
+        const eaten = resolveAIPair(ai1, ai2);
+        if (eaten === 'second') {
+            addScoreGain(scoreGains, i, ai2.score + 100);
+            aisToRemove.add(j);
+        } else if (eaten === 'first') {
+            addScoreGain(scoreGains, j, ai1.score + 100);
+            aisToRemove.add(i);
+            return true;
+        }
+    }
+    return false;
+}
+
 export function handleAIAICollisions() {
     const aisToRemove = new Set();
     const scoreGains = new Map(); // Map of AI index to score gain
 
     for (let i = 0; i < gameState.aiPlayers.length; i++) {
-        if (aisToRemove.has(i)) continue;
-        
-        const ai1 = gameState.aiPlayers[i];
-        if (!ai1 || typeof ai1.score !== 'number') continue;
-
-        for (let j = i + 1; j < gameState.aiPlayers.length; j++) {
-            if (aisToRemove.has(j)) continue;
-            
-            const ai2 = gameState.aiPlayers[j];
-            if (!ai2 || typeof ai2.score !== 'number') continue;
-            
-            const distance = getDistance(ai1, ai2);
-            const ai1Size = getSize(ai1.score);
-            const ai2Size = getSize(ai2.score);
-            const minDistance = ai1Size + ai2Size;
-
-            if (distance < minDistance) {
-                if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(i) || 0;
-                    scoreGains.set(i, currentGain + ai2.score + 100);
-                    aisToRemove.add(j);
-                } else if (ai2Size > ai1Size * COLLISION_THRESHOLD) {
-                    const currentGain = scoreGains.get(j) || 0;
-                    scoreGains.set(j, currentGain + ai1.score + 100);
-                    aisToRemove.add(i);
-                    break;
-                }
-            }
-        }
+        if (aisToRemove.has(i) || !isValidEntity(gameState.aiPlayers[i])) continue;
+        checkAIAgainstOthers(i, aisToRemove, scoreGains);
     }
 
     // Apply score gains to surviving AIs
