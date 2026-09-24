@@ -121,7 +121,8 @@ function getEaterIndex(ai1, ai2, i, j) {
     const ai1Size = getSize(ai1.score);
     const ai2Size = getSize(ai2.score);
 
-    if (getDistance(ai1, ai2) >= ai1Size + ai2Size) return -1;
+    const distance = getDistance(ai1, ai2);
+    if (!(distance < ai1Size + ai2Size)) return -1;
     if (ai1Size > ai2Size * COLLISION_THRESHOLD) return i;
     if (ai2Size > ai1Size * COLLISION_THRESHOLD) return j;
     return -1;

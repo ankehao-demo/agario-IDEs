@@ -28,8 +28,8 @@ export function calculateCenterOfMass(cells) {
 }
 
 function isPositionSafe(pos, entities, minDistance) {
-    return entities.every(entity =>
-        getDistance(pos, entity) >= getSize(entity.score) + minDistance
+    return !entities.some(entity =>
+        getDistance(pos, entity) < getSize(entity.score) + minDistance
     );
 }
 
