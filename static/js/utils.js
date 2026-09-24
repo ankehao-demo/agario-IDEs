@@ -27,39 +27,28 @@ export function calculateCenterOfMass(cells) {
     };
 }
 
+function isPositionSafe(pos, entities, minDistance) {
+    return !entities.some(entity =>
+        getDistance(pos, entity) < getSize(entity.score) + minDistance
+    );
+}
+
+function getMinDistanceToEntities(pos, entities) {
+    return entities.reduce(
+        (min, entity) => Math.min(min, getDistance(pos, entity)),
+        Infinity
+    );
+}
+
 export function findSafeSpawnLocation(gameState, minDistance = 100) {
     const maxAttempts = 50;
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
+    const entities = [...gameState.aiPlayers, ...gameState.playerCells];
+
+    for (let attempts = 0; attempts < maxAttempts; attempts++) {
         const pos = getRandomPosition();
-        let isSafe = true;
-
-        // Check distance from AI players
-        for (const ai of gameState.aiPlayers) {
-            const distance = getDistance(pos, ai);
-            const safeDistance = getSize(ai.score) + minDistance;
-            if (distance < safeDistance) {
-                isSafe = false;
-                break;
-            }
-        }
-
-        // Check distance from player cells
-        for (const cell of gameState.playerCells) {
-            const distance = getDistance(pos, cell);
-            const safeDistance = getSize(cell.score) + minDistance;
-            if (distance < safeDistance) {
-                isSafe = false;
-                break;
-            }
-        }
-
-        if (isSafe) {
+        if (isPositionSafe(pos, entities, minDistance)) {
             return pos;
         }
-
-        attempts++;
     }
 
     // If no safe spot found after max attempts, find the spot furthest from all players
@@ -68,13 +57,7 @@ export function findSafeSpawnLocation(gameState, minDistance = 100) {
 
     for (let i = 0; i < 20; i++) {
         const pos = getRandomPosition();
-        let minDistanceToPlayer = Infinity;
-
-        // Check distance to all players and cells
-        [...gameState.aiPlayers, ...gameState.playerCells].forEach(entity => {
-            const distance = getDistance(pos, entity);
-            minDistanceToPlayer = Math.min(minDistanceToPlayer, distance);
-        });
+        const minDistanceToPlayer = getMinDistanceToEntities(pos, entities);
 
         if (minDistanceToPlayer > maxMinDistance) {
             maxMinDistance = minDistanceToPlayer;
