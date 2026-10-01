@@ -127,7 +127,8 @@ function resolveAIAICollision(i, j, scoreGains, aisToRemove) {
     const ai1Size = getSize(ai1.score);
     const ai2Size = getSize(ai2.score);
 
-    if (getDistance(ai1, ai2) >= ai1Size + ai2Size) return -1;
+    const isOverlapping = getDistance(ai1, ai2) < ai1Size + ai2Size;
+    if (!isOverlapping) return -1;
 
     if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
         addScoreGain(scoreGains, i, ai2.score + 100);
