@@ -146,6 +146,18 @@ describe('handleAIAICollisions', () => {
     expect(gameState.aiPlayers[0].score).toBe(600);  // 400 + 100 + 100 bonus
   });
 
+  test('later larger AI consumes earlier smaller AI', () => {
+    const ai1 = { x: 100, y: 100, score: 100 };
+    const ai2 = { x: 100, y: 100, score: 400 };
+
+    gameState.aiPlayers = [ai1, ai2];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers).toEqual([ai2]);
+    expect(ai2.score).toBe(600);
+  });
+
   test('equal sized AIs do not consume each other', () => {
     const ai1 = { x: 100, y: 100, score: 100 };
     const ai2 = { x: 100, y: 100, score: 100 };

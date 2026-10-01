@@ -225,3 +225,62 @@ describe('updatePlayer', () => {
     expect(isFinite(gameState.playerCells[0].y)).toBe(true);
   });
 });
+
+describe('updatePlayer cell merging', () => {
+  const now = () => Date.now();
+
+  beforeEach(() => {
+    gameState.playerCells = [];
+    // Center the mouse so only merging forces affect velocity
+    mouse.x = window.innerWidth / 2;
+    mouse.y = window.innerHeight / 2;
+  });
+
+  test('merges overlapping cells after cooldown', () => {
+    gameState.playerCells = [
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+      { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 }
+    ];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(1);
+    expect(gameState.playerCells[0]).toMatchObject({ x: 100, y: 100, score: 200, splitTime: 0 });
+  });
+
+  test('pulls mergeable cells together when close but not overlapping', () => {
+    const cell1 = { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 };
+    const cell2 = { x: 150, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 };
+    gameState.playerCells = [cell1, cell2];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(cell1.velocityX).toBeGreaterThan(0);
+    expect(cell2.velocityX).toBeLessThan(0);
+  });
+
+  test('repels recently split cells that overlap', () => {
+    const cell1 = { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now() };
+    const cell2 = { x: 130, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now() };
+    gameState.playerCells = [cell1, cell2];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(cell1.velocityX).toBeLessThan(0);
+    expect(cell2.velocityX).toBeGreaterThan(0);
+  });
+
+  test('applies weak attraction to distant recently split cells', () => {
+    const cell1 = { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now() };
+    const cell2 = { x: 600, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: now() };
+    gameState.playerCells = [cell1, cell2];
+
+    updatePlayer();
+
+    expect(gameState.playerCells.length).toBe(2);
+    expect(cell1.velocityX).toBeGreaterThan(0);
+    expect(cell2.velocityX).toBeLessThan(0);
+  });
+});
