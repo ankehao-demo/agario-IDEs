@@ -166,14 +166,25 @@ describe('findSafeSpawnLocation', () => {
     });
   });
 
-  test('falls back to the furthest position when no safe spot exists', () => {
+  test('falls back to the furthest candidate when no safe spot exists', () => {
     const state = {
-      aiPlayers: [{ x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, score: 1e8 }],
+      aiPlayers: [{ x: 0, y: 0, score: 1e8 }],
       playerCells: []
     };
+    // 50 attempts + initial bestPos = 102 random calls, then 20 fallback candidates
+    const fallbackStart = 102;
+    const furthestCandidateCall = fallbackStart + 2 * 7;
+    let call = 0;
+    const randomSpy = jest.spyOn(Math, 'random').mockImplementation(() => {
+      const index = call++;
+      return index === furthestCandidateCall || index === furthestCandidateCall + 1 ? 0.9 : 0.1;
+    });
 
-    const pos = findSafeSpawnLocation(state);
-
-    expect(isInWorld(pos)).toBe(true);
+    try {
+      const pos = findSafeSpawnLocation(state);
+      expect(pos).toEqual({ x: 0.9 * WORLD_SIZE, y: 0.9 * WORLD_SIZE });
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 });
