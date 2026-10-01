@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,35 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  const isInWorld = pos =>
+    pos.x >= 0 && pos.x <= WORLD_SIZE && pos.y >= 0 && pos.y <= WORLD_SIZE;
+
+  test('returns a position away from all entities when one exists', () => {
+    const state = {
+      aiPlayers: [{ x: 0, y: 0, score: 100 }],
+      playerCells: [{ x: WORLD_SIZE, y: WORLD_SIZE, score: 100 }]
+    };
+
+    const pos = findSafeSpawnLocation(state, 10);
+
+    expect(isInWorld(pos)).toBe(true);
+    state.aiPlayers.concat(state.playerCells).forEach(entity => {
+      expect(getDistance(pos, entity)).toBeGreaterThanOrEqual(getSize(entity.score) + 10);
+    });
+  });
+
+  test('falls back to the furthest position when no safe spot exists', () => {
+    const state = {
+      aiPlayers: [{ x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, score: 1e8 }],
+      playerCells: []
+    };
+
+    const pos = findSafeSpawnLocation(state);
+
+    expect(isInWorld(pos)).toBe(true);
   });
 });
