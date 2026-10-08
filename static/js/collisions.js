@@ -128,7 +128,8 @@ function resolveAIPairCollision(i, j, aisToRemove, scoreGains) {
     const ai1Size = getSize(ai1.score);
     const ai2Size = getSize(ai2.score);
 
-    if (getDistance(ai1, ai2) >= ai1Size + ai2Size) return false;
+    const isTouching = getDistance(ai1, ai2) < ai1Size + ai2Size;
+    if (!isTouching) return false;
 
     if (ai1Size > ai2Size * COLLISION_THRESHOLD) {
         addScoreGain(scoreGains, i, ai2.score + 100);

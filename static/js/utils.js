@@ -28,7 +28,7 @@ export function calculateCenterOfMass(cells) {
 }
 
 function isSafeFrom(pos, entities, minDistance) {
-    return entities.every(entity => getDistance(pos, entity) >= getSize(entity.score) + minDistance);
+    return !entities.some(entity => getDistance(pos, entity) < getSize(entity.score) + minDistance);
 }
 
 function findFurthestPosition(entities, samples = 20) {

@@ -197,4 +197,14 @@ describe('findSafeSpawnLocation', () => {
 
     expect(pos).toEqual({ x: 0.9 * WORLD_SIZE, y: 0.9 * WORLD_SIZE });
   });
+
+  test('ignores entities with missing coordinates when checking safety', () => {
+    mockRandomSequence([0.05, 0.05]);
+    const state = {
+      aiPlayers: [{ x: 1000, y: 1000, score: 0 }, { y: 1000, score: 0 }],
+      playerCells: []
+    };
+
+    expect(findSafeSpawnLocation(state)).toEqual({ x: 100, y: 100 });
+  });
 });

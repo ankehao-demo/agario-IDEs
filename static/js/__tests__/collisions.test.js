@@ -235,4 +235,17 @@ describe('handleAIAICollisions', () => {
     expect(gameState.aiPlayers.length).toBe(2);
     expect(gameState.aiPlayers[0].score).toBe(400);
   });
+
+  test('AI with missing coordinates does not consume other AIs', () => {
+    gameState.aiPlayers = [
+      { score: 400 },
+      { x: 100, y: 100, score: 100 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(2);
+    expect(gameState.aiPlayers[0].score).toBe(400);
+    expect(gameState.aiPlayers[1].score).toBe(100);
+  });
 });
