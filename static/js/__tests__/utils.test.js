@@ -1,4 +1,5 @@
-import { getSize, getDistance, calculateCenterOfMass } from '../utils.js';
+import { getSize, getDistance, calculateCenterOfMass, findSafeSpawnLocation } from '../utils.js';
+import { WORLD_SIZE } from '../config.js';
 
 describe('getSize', () => {
   test('returns correct size for score 0', () => {
@@ -144,5 +145,66 @@ describe('calculateCenterOfMass', () => {
     const result = calculateCenterOfMass(cells);
     expect(isFinite(result.x)).toBe(true);
     expect(isFinite(result.y)).toBe(true);
+  });
+});
+
+describe('findSafeSpawnLocation', () => {
+  const mockRandomSequence = (values, fallback = 0.5) => {
+    let call = 0;
+    return jest.spyOn(Math, 'random').mockImplementation(() => {
+      const value = call < values.length ? values[call] : fallback;
+      call++;
+      return value;
+    });
+  };
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('returns first random position when world is empty', () => {
+    mockRandomSequence([0.1, 0.2]);
+
+    const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [] });
+
+    expect(pos).toEqual({ x: 0.1 * WORLD_SIZE, y: 0.2 * WORLD_SIZE });
+  });
+
+  test('skips positions too close to AI players', () => {
+    mockRandomSequence([0.5, 0.5, 0.05, 0.05]);
+    const state = { aiPlayers: [{ x: 1000, y: 1000, score: 0 }], playerCells: [] };
+
+    expect(findSafeSpawnLocation(state)).toEqual({ x: 100, y: 100 });
+  });
+
+  test('skips positions too close to player cells', () => {
+    mockRandomSequence([0.5, 0.5, 0.05, 0.05]);
+    const state = { aiPlayers: [], playerCells: [{ x: 1000, y: 1000, score: 0 }] };
+
+    expect(findSafeSpawnLocation(state)).toEqual({ x: 100, y: 100 });
+  });
+
+  test('falls back to the position furthest from all entities', () => {
+    const attempts = new Array(100).fill(0.5);
+    // initial best guess, then two samples; remaining samples use the fallback value
+    mockRandomSequence([...attempts, 0.1, 0.1, 0.2, 0.2, 0.9, 0.9], 0.3);
+    const state = {
+      aiPlayers: [{ x: 0, y: 0, score: 0 }],
+      playerCells: [{ x: 10, y: 10, score: 0 }]
+    };
+
+    const pos = findSafeSpawnLocation(state, 1e6);
+
+    expect(pos).toEqual({ x: 0.9 * WORLD_SIZE, y: 0.9 * WORLD_SIZE });
+  });
+
+  test('ignores entities with missing coordinates when checking safety', () => {
+    mockRandomSequence([0.05, 0.05]);
+    const state = {
+      aiPlayers: [{ x: 1000, y: 1000, score: 0 }, { y: 1000, score: 0 }],
+      playerCells: []
+    };
+
+    expect(findSafeSpawnLocation(state)).toEqual({ x: 100, y: 100 });
   });
 });
