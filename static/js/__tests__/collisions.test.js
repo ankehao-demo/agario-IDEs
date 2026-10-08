@@ -195,4 +195,44 @@ describe('handleAIAICollisions', () => {
       expect(ai.score).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
     });
   });
+
+  test('smaller AI listed first is consumed and stops checking further AIs', () => {
+    const small = { x: 100, y: 100, score: 100 };
+    const big = { x: 100, y: 100, score: 400 };
+    const farAway = { x: 1500, y: 1500, score: 50 };
+
+    gameState.aiPlayers = [small, big, farAway];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers).toEqual([
+      { x: 100, y: 100, score: 600 },
+      { x: 1500, y: 1500, score: 50 }
+    ]);
+  });
+
+  test('AI accumulates gains from consuming multiple AIs', () => {
+    const big = { x: 100, y: 100, score: 900 };
+    const small1 = { x: 110, y: 100, score: 100 };
+    const small2 = { x: 90, y: 100, score: 100 };
+
+    gameState.aiPlayers = [big, small1, small2];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(1);
+    expect(gameState.aiPlayers[0].score).toBe(900 + 200 + 200);
+  });
+
+  test('AIs that do not touch are unaffected', () => {
+    gameState.aiPlayers = [
+      { x: 100, y: 100, score: 400 },
+      { x: 1000, y: 1000, score: 100 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers.length).toBe(2);
+    expect(gameState.aiPlayers[0].score).toBe(400);
+  });
 });
