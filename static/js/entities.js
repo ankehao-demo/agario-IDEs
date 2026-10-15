@@ -145,6 +145,24 @@ function mergeCellGroup(group) {
     });
 }
 
+/**
+ * Apply merge forces between player cells and merge cells that touch
+ *
+ * Cells pull together (or push apart while too close) each frame. After
+ * MERGE_COOLDOWN ms since their last split, cells closer than half their
+ * combined radii are replaced by one cell with the summed score and a
+ * score-weighted position and velocity. Mutates gameState.playerCells.
+ *
+ * @returns {void}
+ *
+ * @example
+ * // Two overlapping cells split long ago become one cell with score 400
+ * gameState.playerCells = [
+ *   { x: 100, y: 100, score: 100, velocityX: 0, velocityY: 0, splitTime: 0 },
+ *   { x: 110, y: 100, score: 300, velocityX: 0, velocityY: 0, splitTime: 0 }
+ * ];
+ * updateCellMerging();
+ */
 export function updateCellMerging() {
     const cellsToMerge = findCellsToMerge(Date.now());
     if (cellsToMerge.length === 0) return;
