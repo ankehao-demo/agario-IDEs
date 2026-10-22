@@ -152,8 +152,9 @@ function mergeCellGroup(group) {
  * MERGE_COOLDOWN ms since their last split, cells closer than half their
  * combined radii are replaced by one cell with the summed score and a
  * score-weighted position and velocity. Mutates gameState.playerCells.
+ * Checks up to n(n-1)/2 cell pairs per frame, with n capped at MAX_PLAYER_CELLS.
  *
- * @returns {void}
+ * @returns {void} Updates gameState.playerCells without returning a value
  *
  * @example
  * // Two overlapping cells split long ago become one cell with score 400
