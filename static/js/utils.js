@@ -54,6 +54,20 @@ function findFurthestPosition(entities) {
     return bestPos;
 }
 
+/**
+ * Find a random spawn position away from all AI players and player cells
+ *
+ * Tries up to 50 random positions and returns the first one at least
+ * minDistance beyond every entity's radius; otherwise returns the best of 20
+ * samples by distance to the nearest entity.
+ *
+ * @param {{aiPlayers: Array<{x: number, y: number, score: number}>, playerCells: Array<{x: number, y: number, score: number}>}} gameState - Entities to avoid; both fields must be arrays
+ * @param {number} [minDistance=100] - Extra clearance beyond each entity's radius
+ * @returns {{x: number, y: number}} Spawn position
+ *
+ * @example
+ * const pos = findSafeSpawnLocation({ aiPlayers: [], playerCells: [] });
+ */
 export function findSafeSpawnLocation(gameState, minDistance = 100) {
     const maxAttempts = 50;
 
