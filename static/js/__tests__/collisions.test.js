@@ -186,13 +186,14 @@ describe('handleAIAICollisions', () => {
     gameState.aiPlayers = [
       { x: 100, y: 100, score: 100 },
       { x: 100, y: 100, score: 400 },
-      { x: 100, y: 100, score: 100 }
+      { x: 100, y: 100, score: 20 }
     ];
 
     handleAIAICollisions();
 
     expect(gameState.aiPlayers).toHaveLength(1);
-    expect(gameState.aiPlayers[0].score).toBe(800);  // 400 + (100 + 100) * 2
+    // Consumed AI 0 must not eat AI 2, so AI 1 gains both: 400 + 200 + 120
+    expect(gameState.aiPlayers[0].score).toBe(720);
   });
 
   test('distant AIs do not collide', () => {
