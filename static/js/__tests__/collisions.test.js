@@ -182,6 +182,45 @@ describe('handleAIAICollisions', () => {
     expect(() => handleAIAICollisions()).not.toThrow();
   });
 
+  test('earlier AI is consumed by a later larger AI and stops checking', () => {
+    gameState.aiPlayers = [
+      { x: 100, y: 100, score: 100 },
+      { x: 100, y: 100, score: 400 },
+      { x: 100, y: 100, score: 20 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers).toHaveLength(1);
+    // Consumed AI 0 must not eat AI 2, so AI 1 gains both: 400 + 200 + 120
+    expect(gameState.aiPlayers[0].score).toBe(720);
+  });
+
+  test('distant AIs do not collide', () => {
+    gameState.aiPlayers = [
+      { x: 100, y: 100, score: 400 },
+      { x: 1000, y: 1000, score: 100 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers).toHaveLength(2);
+    expect(gameState.aiPlayers[0].score).toBe(400);
+  });
+
+  test('AI with missing coordinates does not consume a valid AI', () => {
+    gameState.aiPlayers = [
+      { score: 400 },
+      { x: 100, y: 100, score: 100 }
+    ];
+
+    handleAIAICollisions();
+
+    expect(gameState.aiPlayers).toHaveLength(2);
+    expect(gameState.aiPlayers[0].score).toBe(400);
+    expect(gameState.aiPlayers[1].score).toBe(100);
+  });
+
   test('prevents score overflow in AI collisions', () => {
     const ai1 = { x: 100, y: 100, score: Number.MAX_SAFE_INTEGER - 100 };
     const ai2 = { x: 100, y: 100, score: 100 };
