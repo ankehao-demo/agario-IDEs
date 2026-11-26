@@ -151,6 +151,19 @@ function handleCollisionsForAI(i, aisToRemove, scoreGains) {
     }
 }
 
+/**
+ * Resolve collisions between AI players for the current frame
+ *
+ * When two touching AIs differ in size by more than COLLISION_THRESHOLD,
+ * the larger consumes the smaller and gains its score plus 100. An AI that
+ * is consumed stops consuming others, and gains are applied only to AIs
+ * that survive the frame. Consumed AIs are removed from gameState.aiPlayers.
+ *
+ * @returns {void}
+ * @example
+ * // AI with score 400 touching AI with score 100 -> one AI with score 600
+ * handleAIAICollisions();
+ */
 export function handleAIAICollisions() {
     const aisToRemove = new Set();
     const scoreGains = new Map(); // Map of AI index to score gain
